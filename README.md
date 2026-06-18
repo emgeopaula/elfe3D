@@ -9,7 +9,17 @@ model: find out in which format
 
 forward data as forward_data (1D real array) from subroutine order_forward_data in mod_calculate_tf.f90
 
+for testing:
+
+forward_data = 999.0_dp
+
 sensitivities as Jvec (1D real array), JTvec (1D real array), Jrows (1D integer array), Jcols (1D integer array) from subroutine compute_Jvec_JTvec in mod_sensitivities.f90
+
+for testing:
+   Jvec = 666.0_dp
+   JTvec = 444.0_dp
+   Jrows = 6
+   Jcols = 4
 
 _About:_
 
