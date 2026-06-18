@@ -220,8 +220,6 @@ contains
     integer :: i,j, M_check
     integer :: allo_stat
     integer :: skipcol
-
-    
     !-------------------------------------------------------------------
     ! determine number of elements (= number of lines in elements-file)
     M_check = 0 

@@ -53,11 +53,9 @@ contains
   !---------------------------------------------------------------------
   !> @brief'
   !> subroutine for defining solver
-  !>
   !> Define the following in input file:
-  !>
   !> solver
-  !> 1: PARDISO (currently not available!) 
+  !> 1: PARDISO (currently not available!)
   !> 2: MUMPS
   !---------------------------------------------------------------------
   subroutine define_solver (solver)
@@ -101,47 +99,35 @@ contains
   !---------------------------------------------------------------------
   !> @brief
   !> subroutine for defining refinement parameters
-  !>
   !> Define the following in input file:
   !> maxRefSteps, maxUnknowns, betaRef, accuracyTol, vtk , 
-  !> errorEst_method , refStrategy
+  !> errorEst_method , refStrategy             0
   !>
   !> Maximum number of refinement steps:
   !> maxRefSteps = 0 means no refinement
-  !>
+  !> run several frequencies only without refinement
   !> Maximum number of unknowns:
   !> maxUnknowns  
-  !>
   !> threshold for number of elements to be refined:
   !> betaRef
   !> (e.g. 0.9 = those with 90% highest error estimator)
-  !>
   !> desired accuracy tolerance < 1:
   !> accuracyTol
-  !>
   !> write .vtk files for paraview with error estimates (yes/no) = (1/0)
   !> vtk
-  !>
   !> Method for error estimation:
-  !>
   !> errorEst_method
-  !>
   !> residuals (1)
   !> residuals and face jumps J (2)
   !> residuals and face jumps J and H (3)
   !> face jumps J (4)
   !> face jumps H (5)
   !> face jumps J & H  (6)
-  !>
   !> Refinement strategy:
   !> refStrategy
-  !>
   !> constant quality factor (0)
-  !>
   !> maxRefSteps-1 on low quality mesh, last step high quality mesh (1)
-  !>
   !> increasing quality factor (2)
-  !>
   !> increasing quality factor on mesh with detailled subsurface anomaly
   !> (-T and -d  option added) (3)
   !---------------------------------------------------------------------
@@ -205,7 +191,7 @@ contains
                 call Check_Input(log_unit, 'accuracyTol')
              end if
           ! vtk
-          else if (index(ctmp,'vtk') > 0) then
+          else if (index(ctmp,'vtkRef') > 0) then
              bwrd = BegWrd(ctmp,2)
              ewrd = EndWrd(ctmp,2)
              read (unit=ctmp(bwrd:ewrd),fmt=*,iostat=ctmpCode) vtk
@@ -247,7 +233,6 @@ contains
   !---------------------------------------------------------------------
   !> @brief
   !> subroutine for defining mesh
-  !>
   !> Define the following in input file: model_file_name
   !---------------------------------------------------------------------
   subroutine define_mesh (NodeFile, EdgeFile, ElementFile, NeighFile, &
@@ -334,61 +319,45 @@ contains
   !> subroutine for defining size of the source
   !>
   !> Define the following in input file:
-  !>
   !> source_type
-  !>
   !> source start coordinates
-  !>
   !> source end coordinates
-  !>
   !> current_direction
-  !>
   !> source_moment
   !>
   !> Options for source_type:
-  !>
   !> HED_x (0), HED_y (1), loop_source (2), arbitrary HED_x (3), 
   !> arbitrary HED_y (4), straight_source_segment in any direction (5)
   !> segmented_line_source (6), segmented_loop_source (7)
-  !>
   !> PR comment:  only 6 or 7 would be sufficient
-  !>
+
   !> HED_x (0), HED_y (1) are straight HEDs in exactly either x- or 
   !> y- direction
-  !>
   !> loop_source (2) is a squared loop source defined by northern
   !> line-source and midpoint, segments exactly on x- and y- direction
   !> if you choose arbitrary HED, you have to use node-boundary 
   !> markers = 3 for all source nodes in your .poly-inputfile
   !> this will be the fastest option, but it does probably not work 
   !> for refinement!
-  !>
   !> straight_source_segment in any direction (5) every edge between 
   !> source start and source endpoint will be a source edge
-  !>
   !> line/loop source split into straight source segments - provide 
   !> input file with coordinates of segment nodes! (6/7)
-  !>
   !> Loop source coordinates always in clockwise direction!
 
 
   !> Define coordinates of the horizontal source:
-  !>
   !> if z negative downwards:
-  !>
   !> x positive to E
   !> y positive to N
   !> z positive upwards
-  !>
   !> in case of a horizontal loop source, define north line-source 
   !> start & endpoints
 
   !> if z positive downwards:
-  !>
   !> x positive to N
   !> y positive to E
   !> z positive downwards
-  !>
   !> in case of a horizontal loop source, define east line-source 
   !> start & endpoint
 
@@ -398,28 +367,19 @@ contains
 
 
   !> Define direction:
-  !>
   !> if z negative downwards:
-  !>
   !> for CSTYPE = HED:
-  !>
   !> current in positive direction: direction = 0
   !> current in negative direction: direction = 1
-  !>
   !> for CSTYPE = loop_source:
-  !>
   !> clockwise current: direction  = 0
-  !> anticlocwise current: direction = 1
+  !> anticlockwise current: direction = 1
 
   !> if z positive downwards:
-  !>
   !> for CSTYPE = HED:
-  !>
   !> current in positive direction: direction = 1
   !> current in negative direction: direction = 0
-  !>
   !> for CSTYPE = loop_source:
-  !>
   !> clockwise current: direction  = 1
   !> anticlocwise current: direction = 0
   !---------------------------------------------------------------------
@@ -509,30 +469,19 @@ contains
   !> @brief
   !> subroutine for defining existence and size of a PEC
   !> to model metallic borehole casing
-  !>
   !> Define the following in input file:
-  !>
   !> no PEC present: 
   !> PEC_present = 0
-  !>
   !> PEC present: 
   !> PEC_present = 1
-  !>
   !> define number of PEC:
   !> num_PEC
-  !>
   !> followed by coordinates of start points
-  !>
   !> PEC1 start x,y,z
-  !>
   !> PEC2 start x,y,z
-  !>
   !> PEC.. start x,y,z
-  !>
   !> PEC1 end x,y,z
-  !>
   !> PEC2 end x,y,z
-  !>
   !> PEC.. end x,y,z
   !---------------------------------------------------------------------
   subroutine define_PEC (PEC, num_PEC, PEC_start, PEC_end)
@@ -582,7 +531,7 @@ contains
              if ((ctmpCode /= 0) .or. (num_PEC < 0)) then
                 call Check_Input(log_unit, 'num_PEC')
              end if
-             ! allocate space fuer PEC coordinates
+             ! allocate space for PEC coordinates
              if (PEC == 1) then
                ! allocate
                allocate (PEC_start(num_PEC,3), PEC_end(num_PEC,3), &
@@ -615,16 +564,29 @@ contains
   !---------------------------------------------------------------------
   !> @brief
   !> subroutine for defining output files
-  !>
-  !> Define the following in input file: output_E_file, output_E_file
+  !> Define the following in input file: 
+  !> num_rec
+  !> output_E_file, output_E_file
+  !> output_fields_vtk (from version 1.1.0)
+  !> output_sens (from elfe3DInv)
   !---------------------------------------------------------------------
-  subroutine define_output (EFile, HFile, num_rec)
+  subroutine define_output (EFile, HFile, num_rec, fields_vtk, output_sens)
   
     ! OUTPUT
     character(len = 500), intent(out) :: EFile, HFile
     integer, intent(out) :: num_rec
+    ! new in version 1.1.0
+    integer, intent(out) :: fields_vtk
+    ! new in version from elfe3DInv
+    integer, intent(out) :: output_sens
     
     !-------------------------------------------------------------------
+    ! initialise
+    num_rec = 0
+    fields_vtk = 0
+    output_sens = 0
+
+
     ! Read from elfe3D_input.txt
     ! open the file
     open (in_unit, file = trim(FileName), status='old', &
@@ -662,6 +624,26 @@ contains
              if ((ctmpCode /= 0)) then
                 call Check_Input(log_unit, 'output_H_file')
              end if
+          ! new in version 1.1.0
+          ! read output_fields_vtk
+          else if (index(ctmp,'output_fields_vtk') > 0) then
+             bwrd = BegWrd(ctmp,2)
+             ewrd = EndWrd(ctmp,2)
+             read (unit=ctmp(bwrd:ewrd),fmt=*,iostat=ctmpCode)fields_vtk
+             if ((ctmpCode /= 0) .or. (fields_vtk < 0) &
+                                 .or. (fields_vtk > 1)) then
+                call Check_Input(log_unit, ' output_fields_vtk')
+             end if
+          ! new in version elfe3DInv
+          ! read output_sens
+          else if (index(ctmp,'output_sens') > 0) then
+             bwrd = BegWrd(ctmp,2)
+             ewrd = EndWrd(ctmp,2)
+             read (unit=ctmp(bwrd:ewrd),fmt=*,iostat=ctmpCode)output_sens
+             if ((ctmpCode /= 0) .or. (fields_vtk < 0) &
+                                 .or. (fields_vtk > 1)) then
+                call Check_Input(log_unit, ' output_sens')
+             end if          
           end if
           ! read next line
           read (unit=in_unit, fmt=lfm, iostat=ReadCode) ctmp
@@ -676,10 +658,8 @@ contains
   !---------------------------------------------------------------------
   !> @brief
   !> subroutine for defining frequencies
-  !>
   !> Define the following in input file: 
-  !> num_freq 
-  !>
+  !> num_freq                1
   !> followed by a list of frequencies
   !---------------------------------------------------------------------
 
@@ -737,11 +717,8 @@ contains
   !---------------------------------------------------------------------
   !> @brief
   !> subroutine for defining model_size
-  !>
   !> Define the following in input file below keyword model_size
-  !>
   !> minimum x,y,z
-  !>
   !> maximum x,y,z
   !---------------------------------------------------------------------
   subroutine define_model_size (x_min, x_max, &
@@ -785,11 +762,8 @@ contains
   !---------------------------------------------------------------------
   !> @brief
   !> subroutine for defining receiver locations
-  !>
   !> Define the following in input file: 
-  !>
   !> num_rec
-  !>
   !> followed by a list of receiver coordinates x,y,z
   !---------------------------------------------------------------------
   subroutine define_rec (M, num_rec, a, b, c, d, Ve, u1, v1, w1, &
@@ -901,6 +875,68 @@ contains
     end do receiver_loop
    !--------------------------------------------------------------------
   end subroutine define_rec
+
+  !---------------------------------------------------------------------
+  !> @brief
+  !> !!! new in elfe3D_inv !!!
+  !> subroutine for defining Jacobian domain and free region indices
+  !> Define the following in input file: 
+  !> num_free_regions        1
+  !> followed by a list of free region indices
+  !> all region indices are defined in .poly mesh file
+  !---------------------------------------------------------------------
+  subroutine define_J_domain(num_free_regions, free_region_attr)
+    ! OUTPUT
+    integer, intent(out) :: num_free_regions
+    integer, allocatable, dimension(:), intent(out) :: free_region_attr
+
+    ! LOCAL variables
+    integer :: allo_stat
+    integer :: i
+    !-------------------------------------------------------------------
+    ! initialise
+    num_free_regions = 999
+    
+    ! Read from elfe3D_input.txt
+    ! open the file
+    open (in_unit, file = trim(FileName), status='old', &
+                   action = 'read', iostat = opening)
+
+    ! was opening successful?
+    if (opening /= 0) then
+        call Write_Error_Message(log_unit, &
+        'define_output: file '//trim(FileName)//' could not be opened')
+    else
+       ! read in elfe3D_input file
+       read (unit=in_unit, fmt=lfm, iostat=ReadCode) ctmp
+       line_read_loop: do while (ReadCode == 0)
+          ! num_free_regions
+          if (index(ctmp,'num_free_regions') > 0) then
+             bwrd = BegWrd(ctmp,2)
+             ewrd = EndWrd(ctmp,2)
+             read (unit=ctmp(bwrd:ewrd),fmt=*,iostat=ctmpCode) num_free_regions
+             if ((ctmpCode /= 0) .or. (num_free_regions < 0)) then
+                call Check_Input(log_unit, 'num_free_regions')
+             end if
+             allocate (free_region_attr(num_free_regions),stat = allo_stat)
+               call allocheck(log_unit, allo_stat, &
+                        "read_model_param: error allocating array free_region_attr")
+              ! initialise
+              free_region_attr = 999
+              ! read free region indices
+              do i = 1,num_free_regions
+                read (in_unit,*) free_region_attr(i)
+              end do    
+          end if
+          ! read next line
+          read (unit=in_unit, fmt=lfm, iostat=ReadCode) ctmp
+       end do line_read_loop
+       ! close input file
+       close (unit = in_unit)
+    end if
+
+   !--------------------------------------------------------------------
+  end subroutine define_J_domain
 
 end module define_model
 

@@ -35,23 +35,14 @@ contains
   !> @brief 
   !> subroutine for assigning model parameters to elements based on 
   !> their element attributes
-  !>
   !> Provide the following in input file: in/regionparameters.txt
-  !>
   !> This input file must have the following 
-  !>
   !> structure (example):
-  !>
-  !> eleattr
-  !>
+  !> # eleattr
   !> 3
-  !>
-  !> eleattr rho mu_r epsilon_r
-  !>
+  !> # eleattr rho mu_r epsilon_r
   !> 1 100000000.0 1.0 0.0
-  !>
   !> 2 100 1.0 0.0
-  !>
   !> 3 10 1.0 0.0
   !>
   !> epsilon_r is not used.
@@ -151,5 +142,81 @@ contains
     if(allocated(region_epsilon_r)) deallocate(region_epsilon_r)
 
   end subroutine read_model_param
+
+  !---------------------------------------------------------------------
+  !> @brief
+  !> !!! new in elfe3D_inv !!!
+  !> subroutine for finding free element indices for sensitivity comp.
+  !---------------------------------------------------------------------
+  subroutine find_free_elements(M, eleattr, num_free_regions, &
+                           free_region_attr,num_free_M, free_M_indices)
+  ! INPUT
+    integer, dimension(:), intent(in) :: eleattr
+    ! number of elements
+    integer, intent(in) :: M
+    integer, intent(in) :: num_free_regions
+    integer, dimension(:), intent(in) :: free_region_attr
+
+    ! OUTPUT
+    integer, intent(out) :: num_free_M
+    integer, allocatable, dimension(:), intent(out) :: free_M_indices
+
+    ! LOCAL variables
+    integer :: i, j, allo_stat, count
+  !-------------------------------------------------------------------
+  ! initialise
+  num_free_M = 999
+  count = 0
+
+  ! determine num_free_M
+  do i = 1, M
+    do j = 1, num_free_regions
+      if (eleattr(i) .eq. free_region_attr(j)) then
+        count = count + 1
+      end if
+    end do
+  end do
+
+  num_free_M = count
+
+
+  ! find free_M_indices
+  ! initialise
+  count = 0
+  ! allocate
+  allocate (free_M_indices(num_free_M),stat = allo_stat)
+    call allocheck(log_unit, allo_stat, &
+             "find_free_elements: error allocating array free_M_indices")
+  ! initialise
+  free_M_indices = 999
+
+  ! assign free element indices
+  do i = 1, M
+    do j = 1, num_free_regions
+      if (eleattr(i) .eq. free_region_attr(j)) then
+        count = count + 1
+        free_M_indices(count) = i
+      end if
+    end do
+  end do
+
+  ! Check if array size is correct
+  if (count .ne. num_free_M) then
+      call Write_Message (log_unit, &
+                     'free_M_indices array size does not match count!!!')
+  end if 
+
+  ! Check if arrays contain NaN elements or are zero
+  do i = 1,num_free_M
+    if (free_M_indices(i) .ne. free_M_indices(i)) then
+      call Write_Message (log_unit, &
+                     'free_M_indices array contains NaN elements!!!')
+    else if (free_M_indices(i) .eq. 0 .or. free_M_indices(i) .eq. 999) then
+      call Write_Message (log_unit, &
+           'free_M_indices array contains elements equal to zero or 999!!!')
+    end if
+  end do
+
+  end subroutine find_free_elements
   !---------------------------------------------------------------------
 end module model_parameters

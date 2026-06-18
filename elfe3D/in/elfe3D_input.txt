@@ -2,7 +2,7 @@ solver                  2
 model_size
 -30000 -30000 -30000
 30000 30000 30000
-num_freq                3
+num_freq                1
 1.0
 10.0
 100.0
@@ -82,6 +82,10 @@ num_rec                 73
 2000	0	-0.01
 output_E_file           out/electric_fields
 output_H_file           out/magnetic_fields
+output_fields_vtk       1
+output_sens             1
+num_free_regions        1
+3
 source_type             6
 -50.0 0.0 0.0
 50.0 0.0 0.0
@@ -96,6 +100,7 @@ maxRefSteps             0
 maxUnknowns             10000000  
 betaRef                 0.85
 accuracyTol             0.00003
-vtk                     0
+vtkRef                  0
 errorEst_method         4
 refStrategy             1
+

@@ -24,9 +24,9 @@
 !> to calculate electric and magnetic fields components 
 !> at given positions.
 !!
-!> Specify modelling input parameters in in/elfe3D_input.txt
+!! Specify modelling input parameters in elfe3D/in
 !!
-!> Compile with: the provided makefile, tested with gfortran compiler.
+!> Compile with: the provided Makefile, tested with gfortran compiler.
 !!
 !> Provide mesh files in tetgen format.    
 !!
@@ -66,6 +66,7 @@ program elfe3d
   use calculate_tf
   use error_estimates
   use tetgen_operations
+  use sensitivities
   use omp_lib
 
 
@@ -76,8 +77,8 @@ program elfe3d
   !---------------------------------------------------------------------
   ! Counter variables
   integer :: i,j,l
-  integer :: numfreq ! current frequency
-  integer :: refStep ! current refinement step
+  integer :: numfreq
+  integer :: refStep
 
 
   ! Mesh filenames
@@ -148,6 +149,10 @@ program elfe3d
   
   ! Declaration of array for element attributes M times 1
   integer, allocatable, dimension(:) :: eleattr
+
+  ! new in version 1.1.0
+  ! Element centroids, array of size M times 3
+  real (kind=dp), allocatable, dimension(:,:) :: elem_centr
 
   ! Declaration of coordinate matrixes and linear interpolation
   ! function arays
@@ -226,10 +231,51 @@ program elfe3d
   complex(kind=dp), dimension(3) :: E_rec1 
   ! Vector containing Hx,Hy and Hz component at receiver site
   complex(kind=dp), dimension(3) :: H_rec1 
+  ! new in version 1.1.0
+  ! array containing domain E field components at element centroids
+  complex(kind=dp), allocatable, dimension(:,:) :: domain_Efields
+  ! new in version 1.1.0
+  ! array containing domain H field components at element centroids
+  complex(kind=dp), allocatable, dimension(:,:) :: domain_Hfields
   ! Receiver coordinates
   real(kind=dp), allocatable, dimension(:) :: u1, v1, w1 
   ! Number of receivers
   integer :: num_rec
+  ! new in version 1.1.0
+  ! input information - domain field components to be saved in vtk file
+  integer :: fields_vtk
+
+  !!!! --------new in elfe3DInv-------!!!!
+  ! for Jacobian/sensitivity calculation
+  integer :: output_sens
+  integer :: num_free_regions
+  ! output? model parameters of free cells for inversion
+  integer, allocatable, dimension(:) :: free_region_attr
+  integer :: num_free_M
+  ! indices to map back to original forward mesh
+  integer, allocatable, dimension(:) :: free_M_indices
+
+  ! variables for assembling derivative wrt. un-transformed model 
+  ! parameters for each element matrix in COO format
+  complex(kind=dp), allocatable, dimension(:,:) :: dAdrho
+  integer, allocatable, dimension(:,:) :: dAdrhorow, dAdrhocol
+  ! counters for dAdrho assembly
+  integer :: NNZ_dAdrho
+  integer :: i_free_M
+
+  ! sensitivity output: Jacobian times vectors in COO format
+  real(kind=dp), allocatable, dimension(:) :: Jvec, JTvec
+  ! number of Jrows corresponds to 2x data-size (Re; Im)
+  ! number of columns corresponds to the model size (num_free_M)
+  integer(kind=dp), allocatable, dimension(:) :: Jrows, Jcols
+
+  ! data output for inversion (E and H fields)
+  ! sorted as:
+  ! PR: decide on sorting
+  real(kind=dp), allocatable, dimension(:) :: forward_data
+
+  !!!! ----------------------------!!!!
+
 
   ! Source parameters
   ! Source type and direction
@@ -285,7 +331,7 @@ program elfe3d
   character(len = 50) :: StringStep, StringEnding
 
   ! time testing
-  real(kind=dp) :: start, finish, seconds, seconds_solve
+  real(kind=dp) :: start, finish, seconds,seconds_solve
 
   ! solver type
   integer :: solver
@@ -330,14 +376,47 @@ program elfe3d
   ! termination criterion of loop (0 = continue, 1 = terminate)
   terminationCrit = 0
 
+  ! Reading output information
+  call Write_Message (log_unit, '*************************************')
+  call Write_Message (log_unit, 'Reading output information')
+
   ! Open Output files
-  call define_output(EFile, HFile, num_rec)
+  call define_output(EFile, HFile, num_rec, fields_vtk, output_sens)
   open (unit = (50+1), file = trim(EFile)//".txt") ! electric fields
   open (unit = (50+2), file = trim(HFile)//".txt") ! magnetic fields
   ! electric fields ordered along receiver line
   open (unit = (50+3), file = trim(EFile)//"_receiver_line.txt") 
   ! magnetic fields ordered along receiver line
   open (unit = (50+4), file = trim(HFile)//"_receiver_line.txt") 
+
+  call Write_Message (log_unit, &
+     'Your output files will be generated in: /out')
+  if (fields_vtk == 1) then
+    call Write_Message (log_unit, &
+     'Field components in the domain will be in *.vtk file in: /in')
+  end if
+  ! New in elfe3DINV
+  if (output_sens == 1) then
+    if (maxRefSteps .eq. 0) then
+      call Write_Message (log_unit, &
+       'Sensitivities in the domain will be in *.vtk file in: /in')
+      call Write_Message (log_unit, &
+       'Jacobian entries will be in J.txt file in: /out')
+    else if (maxRefSteps .ne. 0) then
+      call Write_Message (log_unit, &
+       'Warning! maxRefSteps must be 0 to obtain Jacobian')
+    end if 
+  end if
+
+  ! Jacobian domain
+  if (output_sens == 1 .and. maxRefSteps .eq. 0) then
+    call define_J_domain(num_free_regions, free_region_attr)
+    call Write_Message (log_unit, &
+     'Jacobian computation involves')
+    print *, 'num_free_regions: ',num_free_regions
+    print *,'free_region_attr: ' ,free_region_attr
+  end if
+  
 
   if (vtk == 1) then
     ! Refinement-info 
@@ -371,6 +450,13 @@ program elfe3d
   ! Reading elements with corresponding node numbers from file elem.txt
   call read_elements(ElementFile, M, el2nd, eleattr)
 
+  ! new in elfe3D_inv
+  ! Save element numbers/indices of free elements for Jacobian computation
+  ! in free_M_indices
+  if (output_sens == 1) then
+     call find_free_elements(M, eleattr, num_free_regions, free_region_attr, num_free_M, free_M_indices)
+  end if 
+
   ! Reading element-neighbours with corresponding element numbers 
   ! from file neigh.txt
   call read_neigh(NeighFile, M, el2neigh)
@@ -381,6 +467,9 @@ program elfe3d
   print *,N,'Nodes'
   print *,M,'Elements'
   print *,E,'Edges (dof)'
+  if (output_sens == 1 .and. maxRefSteps .eq. 0) then
+  print *,num_free_M,'Elements for Jacobian'
+  end if
 
   !---------------------------------------------------------------------
   ! II: assemble connectivity arrays
@@ -530,7 +619,21 @@ program elfe3d
   allocate (Agcoo(M*36), Agrow(M*36), Agcol(M*36), stat = allo_stat)
   call allocheck(log_unit, allo_stat, "Error allocating array Agcoo") 
 
-  ! Allocate output arrays foe electric an magnetic fields
+  ! New in elfe3DINV
+  ! Allocating derivatives dAdrho in coordinate format
+  if (output_sens == 1 .and. maxRefSteps .eq. 0) then
+     allocate (dAdrho(num_free_M,36), dAdrhorow(num_free_M,36), &
+               dAdrhocol(num_free_M,36), stat = allo_stat)
+     call allocheck(log_unit, allo_stat, "Error allocating array dAdrho")
+     ! initialise
+     dAdrhorow = 0
+     dAdrhocol = 0 
+     dAdrho = (0.0_dp,0.0_dp) 
+     NNZ_dAdrho = 0
+     i_free_M = 0
+  end if
+
+  ! Allocate output arrays for electric an magnetic fields
   allocate (EFields(Nfreq,num_rec,3), HFields(Nfreq,num_rec,3), &
             stat = allo_stat)
   call allocheck(log_unit, allo_stat, &
@@ -618,6 +721,59 @@ program elfe3d
               end if
            end do
         end do
+
+        ! new in elfe3DINV: dAdrho calculation for Jacobian
+        ! only if no refinement, for the first frequency 
+        ! and only for free model parameters in inversion
+        if(output_sens == 1 .and. maxRefSteps .eq. 0 .and. &
+           numfreq == 1 .and. any(free_M_indices .eq. l)) then
+
+            i_free_M = i_free_M + 1
+            NNZ_dAdrho = 0
+
+            ! system matrix derivatives for each free element,
+            ! multiplication with angular frequency later on
+            ! loop through local matrix for storage in coordinate format
+            do j = 1,6
+               do i = 1,6
+                 ! next entry for element
+                 NNZ_dAdrho = NNZ_dAdrho + 1
+                 ! if any of the current edges is a surface edge:
+                 ! apply/use Dirichlet BC of Ag
+                 if (any(s_edges == el2ed(l,j)) .eqv. .true. &
+                     .or. any(s_edges == el2ed(l,i)) .eqv. .true.) then
+                   if(j == i) then
+                     ! diagonal surface edge entry in Ag = 1.0 
+                     ! -> dAdrho = 1.0/drho = 0.0
+                     dAdrho(i_free_M,NNZ_dAdrho) = (0.0_dp, 0.0_dp)
+                   else
+                     ! non-diagonal surface edge entry in Ag = 0.0 
+                     ! -> dAdrho = 0.0/drho = 0.0
+                     dAdrho(i_free_M,NNZ_dAdrho) = (0.0_dp, 0.0_dp)
+                   end if
+                 else
+                   ! dAdm is -iw(1/rho)*MM*ln10, if inversion parameters
+                   ! are log10(resistivities)
+                   ! including the log transform in the objective function
+                   ! gradient must be done later
+                   ! where the gradients are multiplied by
+                   ! (10.0_dp**(model%p(iNEC))) * log(10.0_dp) in this case
+                   ! so that dAdrho is calculated here
+                   ! multiplication with angular frequency also follows later
+                   ! PR: check what happens with the +/- later on!
+                   dAdrho(i_free_M,NNZ_dAdrho) = &
+                             cmplx(D0,(1.0_dp/(rho(l)**2.0_dp)) &
+                                   * MM(i,j),kind=dp)
+                 end if
+
+                   dAdrhorow(i_free_M,NNZ_dAdrho) = el2ed(l,i)
+                   dAdrhocol(i_free_M,NNZ_dAdrho) = el2ed(l,j)
+            
+               end do
+            end do
+
+
+        end if
 
      end do matrix_element_loop
 
@@ -1032,11 +1188,12 @@ program elfe3d
 
  
      ! -----------------------------------------------------------------
-     ! XII: Calculate E- and H-Field response at receiver locations 
+     ! XII: Calculate E- and H-Field responses 
      ! ----------------------------------------------------------------- 
      ! AT FINAL REFINEMENT STEP
      else if (terminationCrit == 1) then
      
+       ! at receiver locations 
        receiver_loop: do l = 1, num_rec
 
         call calculate_fields (u1(l), v1(l), w1(l), rec1_el(l), &
@@ -1058,6 +1215,51 @@ program elfe3d
         Hfields(numfreq,l,3) = H_rec1(3)
 
        end do receiver_loop
+
+       ! new in version 1.1.0
+       ! obtain fields for first frequency
+       ! at all element centroids
+       ! if fields should be put into .vtk file 
+       ! as specified in input file
+       if (fields_vtk == 1 .and. numfreq == 1) then
+
+         ! calculate centroids of all mesh elements
+         call tetrahedra_centriods(nd(el2nd(:,1),:), nd(el2nd(:,2),:), &
+                                   nd(el2nd(:,3),:), nd(el2nd(:,4),:), &
+                                   M, elem_centr)
+         ! allocate arrays for domain fields
+         allocate (domain_Efields(M,3), domain_Hfields(M,3), &
+                                                       stat = allo_stat)
+         call allocheck(log_unit, allo_stat, &
+                                       "error allocating domain fields")
+         ! initialise
+         domain_Efields = ZEROW
+         domain_Hfields = ZEROW
+         ! calculate fields at all element centriods
+         fields_element_loop: do l = 1,M
+
+          call calculate_fields (elem_centr(l,1), elem_centr(l,2), &
+                                 elem_centr(l,3), l, &
+                                 el2ed, S, &
+                                 a_start, a_end, b_start, b_end, &
+                                 c_start, c_end, d_start, d_end,&
+                                 el2edl, ed_sign, Ve, w, mu, E_rec1, &
+                                 H_rec1)
+          ! assign element fields to domain field array
+          domain_Efields(l,:) = E_rec1(:)
+          domain_Hfields(l,:) = H_rec1(:)
+
+         end do fields_element_loop
+
+         ! write field components into .vtk file
+         call write_vtk_fields (M, refStep, MeshFileName, &
+                                domain_Efields, domain_Hfields)
+         ! deallocate domain field arrays
+         deallocate(domain_Efields, domain_Hfields)
+         ! deallocate element centriod array
+         if (allocated(elem_centr)) deallocate(elem_centr)
+
+       end if
      
      end if !(end IF last refinement step)
 
@@ -1102,6 +1304,44 @@ program elfe3d
     end do
   end do
 
+  ! new in elfe3D_Inv
+  if (output_sens == 1 .and. maxRefSteps .eq. 0) then
+
+     !!! model to be transferred to inversion !!!
+     ! PR: to be added
+
+     !!! forward data to be transferred to inversion !!!
+     ! order E-fields and H-fields in real 1D array
+     ! allocation
+     ! PR: change size to dynamic amount of data you want for inversion
+     allocate (forward_data(12), stat = allo_stat)
+     call allocheck(log_unit, allo_stat, &
+                    "Error allocating array forward_data") 
+     ! initialise
+     forward_data = 0.0_dp
+     ! PR: dummy output from subroutine: 999.0
+     call order_forward_data (Efields, Hfields, forward_data)
+
+     !!!! sensitivities to be transferred to inversion !!!
+     ! calculate sensitivities
+     ! allocation
+     ! PR: change size to dynamic amount of data you want for inversion
+     allocate (Jvec(36),JTvec(36),Jrows(36),Jcols(36), stat = allo_stat)
+     call allocheck(log_unit, allo_stat, &
+                    "Error allocating array forward_data") 
+     ! initialise
+     Jvec = 0.0_dp
+     JTvec = 0.0_dp
+     Jrows = 0
+     Jcols = 0
+     !call compute_Jvec_JTvec(rho, num_free_M, free_M_indices, &
+     !                        dAdrho, dAdrhorow, dAdrhocol, &
+     !                        Jrows, Jcols, Jvec, JTvec)
+     ! PR: dummy output
+     call compute_Jvec_JTvec(Jrows, Jcols, Jvec, JTvec)
+
+  end if
+
 
      
   ! Clean allocated refinement loop variables
@@ -1133,6 +1373,11 @@ program elfe3d
   deallocate(freq)
   deallocate(nodemarker,edgemarker,eleattr)
   if (allocated(EFields)) deallocate(EFields, HFields)
+  if (allocated(free_region_attr)) deallocate(free_region_attr)
+  if (allocated(free_M_indices)) deallocate(free_M_indices)
+  if (allocated(dAdrho)) deallocate(dAdrho, dAdrhocol, dAdrhorow)
+  if (allocated(Jvec)) deallocate(Jvec, JTvec, Jcols, Jrows)
+  if (allocated(forward_data)) deallocate(forward_data)
 
   call Write_Message (log_unit, 'Allocated variables were deallocated')
 
