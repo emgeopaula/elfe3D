@@ -1,4 +1,4 @@
-# elfe3D v1.0.0
+# elfe3D with updated features to calculate sensitivities for inversion, to become v2.0.0
 Modelling with the total **el**ectric field approach using **f**inite **e**lements in **3D**
 
 !!! Under development for enabling inversion !!!
