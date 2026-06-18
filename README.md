@@ -3,6 +3,14 @@ Modelling with the total **el**ectric field approach using **f**inite **e**lemen
 
 !!! Under development for enabling inversion !!!
 
+Output for inversion:
+
+model: find out in which format
+
+forward data as forward_data (1D real array) from subroutine order_forward_data in mod_calculate_tf.f90
+
+sensitivities as Jvec (1D real array), JTvec (1D real array), Jrows (1D integer array), Jcols (1D integer array) from subroutine compute_Jvec_JTvec in mod_sensitivities.f90
+
 _About:_
 
 `elfe3D` is a 3D forward modelling code that can simulate electric and magnetic field responses from frequency-domain controlled-source electromagnetic geophysical setups. It uses tetrahedral meshes and first-order finite-element approximations. In addition, adaptive mesh refinement approaches are implemented.
