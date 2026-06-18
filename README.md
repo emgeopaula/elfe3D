@@ -1,8 +1,6 @@
 # elfe3D v1.0.0
 Modelling with the total **el**ectric field approach using **f**inite **e**lements in **3D**
 
-!!! Under development for enabling inversion !!!
-
 _About:_
 
 `elfe3D` is a 3D forward modelling code that can simulate electric and magnetic field responses from frequency-domain controlled-source electromagnetic geophysical setups. It uses tetrahedral meshes and first-order finite-element approximations. In addition, adaptive mesh refinement approaches are implemented.
