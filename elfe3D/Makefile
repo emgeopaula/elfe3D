@@ -12,7 +12,7 @@ ARCH = $(shell uname -m)
 HOST = $(shell hostname)
 
 # object files created during compilation
-OBJ =   mod_constant.o \
+CORE_OBJS =   mod_constant.o \
 	mod_types_basic.o \
 	mod_util.o \
 	mod_vector_products.o \
@@ -30,8 +30,10 @@ OBJ =   mod_constant.o \
 	mod_error_estimates.o \
 	mod_tetgen_operations.o \
 	mod_sensitivities.o \
-	elfe3d.o
+	mod_elfe3d.o
 
+# Main app executable object
+MAIN_OBJ = main.o
 
 # link MUMPS libaries here!
 OBJUTIL = -L$(MUMPS_ROOT)/lib -lpthread -lm -lzmumps -lmumps_common -lesmumps -lpord -lmpiseq -L$(SCOTCH_ROOT)/lib -L$(SCOTCH_ROOT)/lib64 -L$(METIS_ROOT)/lib -lscotch -lscotcherr -lmetis -lopenblas
@@ -44,7 +46,7 @@ OBJUTIL = -L$(MUMPS_ROOT)/lib -lpthread -lm -lzmumps -lmumps_common -lesmumps -l
 ifeq ($(findstring gfortran,${FCC}),gfortran) 
 
 # compiler flags
-FFLAGS = -Ofast -march=native -mtune=native -mfma -malign-data=cacheline -ffree-form -ftree-vectorize -ftree-vectorizer-verbose=2 -fopt-info-vec -fopenmp 
+FFLAGS = -Ofast -march=native -mtune=native -mfma -malign-data=cacheline -ffree-form -ftree-vectorize -ftree-vectorizer-verbose=2 -fopt-info-vec -fopenmp -fPIC
 FFLAGS += -pg 
 #
 # for warnings you can include here: 
@@ -83,32 +85,52 @@ FFLAGS += -I$(MUMPS_ROOT)/include
 
 ##-------------------------------------------------------------------------------------
 #
-#  Default command.
+# Default command.
 #
 .DEFAULT:
-	@echo "Unknown target $@, try:  make help"
+		@echo "Unknown target $@, try: make help"
 
 #
-#  Local help file.
+# Local help file.
 #
 help:
-	@echo "   make clean  -  remove all object, module and executable files"
-	@echo "   make all    -  make all object, module and executable files"
+		@echo " make clean - remove all object, module and executable files"
+		@echo " make all - make standalone executable and python extension"
+		@echo " make elfe3d - make standalone executable"
+		@echo " make python - make python extension"
 
-#
-# Dependencies of object files and their compilation rules
-#
-$(OBJ): %.o: %.f90 
-	$(FCC) $(FFLAGS) $(COMPFLAGS) -c $< -o $@ 
 
-#
-# Linking stage
-#
-all: $(OBJ)
-	$(FCC) $(FFLAGS) $(OBJ) $(OBJUTIL) -Wl,-rpath=$(MUMPS_ROOT)/lib -Wl,-rpath=$(METIS_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib -o elfe3d 
+
+# Default rule to compile everything both the app and the python wrapper
+all: elfe3d python
+
+# Rule to compile object files
+%.o: %.f90
+		$(FCC) $(FFLAGS) $(COMPFLAGS) -c $< -o $@
+
+# Target elfe3d: build the standalone executable application
+elfe3d: $(CORE_OBJS) $(MAIN_OBJ)
+		$(FCC) $(FFLAGS) $(MAIN_OBJ) $(CORE_OBJS) $(OBJUTIL) -Wl,-rpath=$(MUMPS_ROOT)/lib -Wl,-rpath=$(METIS_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib64 -o elfe3d
+
+# Target libelfe3d.a: build a static library needed by the python wrapper
+# $@ expands to target name (libelfe3d.a)
+# $^ exapands to all pre-requisites (CORE_OBJS)
+libelfe3d.a: $(CORE_OBJS)
+		ar rcs $@ $^
+		@echo "Library libelfe3d.a and module files (.mod) are ready"
+
+# Target python: build the Python extension linking against the static library (libelfe3d.a)
+python: libelfe3d.a
+		FC=$(FCC) FFLAGS="$(FFLAGS)" \
+				LDFLAGS="-Wl,-rpath=$(MUMPS_ROOT)/lib -Wl,-rpath=$(METIS_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib64 -fopenmp" \
+				NPY_DISTUTILS_APPEND_FLAGS=1 \
+				python -m numpy.f2py -c -m pyelfe3d python_interface.pyf \
+				-L. -lelfe3d \
+				-I$(MUMPS_ROOT)/include \
+				$(OBJUTIL)
 
 # clean up
 .PHONY: clean
 
 clean:
-	rm -f *.o *.mod in/*.vol
+		rm -f *.o *.mod *.a *.so in/*.vol elfe3d elfe3d*.so

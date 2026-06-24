@@ -1,0 +1,21 @@
+python module pyelfe3d
+  interface
+
+    ! elfe3d:mod_elfe3d.f90
+    module elfe3d
+
+      ! Expose the allocatable module variables to Python
+      double precision dimension(:), allocatable :: Jvec
+      double precision dimension(:), allocatable :: JTvec
+      integer(kind=8) dimension(:), allocatable :: Jrows
+      integer(kind=8) dimension(:), allocatable :: Jcols
+      double precision dimension(:), allocatable :: forward_data
+
+      ! Expose main solver
+      subroutine solve
+      end subroutine solve
+
+    end module elfe3d
+
+  end interface
+end python module pyelfe3d
