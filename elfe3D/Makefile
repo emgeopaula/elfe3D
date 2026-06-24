@@ -29,11 +29,12 @@ OBJ =   mod_constant.o \
 	mod_calculate_tf.o \
 	mod_error_estimates.o \
 	mod_tetgen_operations.o \
+	mod_sensitivities.o \
 	elfe3d.o
 
 
 # link MUMPS libaries here!
-OBJUTIL = -L$(MUMPS_ROOT)/lib -lpthread -lm -lzmumps -lmumps_common -lesmumps -lpord -lmpiseq -L$(SCOTCH_ROOT)/lib -L$(METIS_ROOT)/lib -lscotch -lscotcherr -lmetis -lopenblas
+OBJUTIL = -L$(MUMPS_ROOT)/lib -lpthread -lm -lzmumps -lmumps_common -lesmumps -lpord -lmpiseq -L$(SCOTCH_ROOT)/lib -L$(SCOTCH_ROOT)/lib64 -L$(METIS_ROOT)/lib -lscotch -lscotcherr -lmetis -lopenblas
 
 ##-------------------------------------------------------------------------------------
 # Section with compiler flags for shared library and compiler options
