@@ -348,6 +348,7 @@ contains
     ! Variables for MUMPS and pseudo MPI
     logical :: flag
 
+    ! Ne in elfe3D_INV
     ! Deallocate sensitivity data
     if (allocated(Jvec)) deallocate(Jvec, JTvec, Jcols, Jrows)
     if (allocated(forward_data)) deallocate(forward_data)
@@ -409,13 +410,12 @@ contains
       call Write_Message (log_unit, &
       'Field components in the domain will be in *.vtk file in: /in')
     end if
+
     ! New in elfe3DINV
     if (output_sens == 1) then
       if (maxRefSteps .eq. 0) then
         call Write_Message (log_unit, &
-        'Sensitivities in the domain will be in *.vtk file in: /in')
-        call Write_Message (log_unit, &
-        'Jacobian entries will be in J.txt file in: /out')
+        'Jacobian products will be generated as output arrays')
       else if (maxRefSteps .ne. 0) then
         call Write_Message (log_unit, &
         'Warning! maxRefSteps must be 0 to obtain Jacobian')
@@ -428,7 +428,7 @@ contains
       call Write_Message (log_unit, &
       'Jacobian computation involves')
       print *, 'num_free_regions: ',num_free_regions
-      print *,'free_region_attr: ' ,free_region_attr
+      print *, 'free_region_attr: ' ,free_region_attr
     end if
     
 
@@ -739,8 +739,9 @@ contains
           ! new in elfe3DINV: dAdrho calculation for Jacobian
           ! only if no refinement, for the first frequency 
           ! and only for free model parameters in inversion
-          if(output_sens == 1 .and. maxRefSteps .eq. 0 .and. &
-            numfreq == 1 .and. any(free_M_indices .eq. l)) then
+          if(output_sens == 1 .and. maxRefSteps .eq. 0 .and. numfreq == 1 ) then
+            ! if current element is a free element for inversion
+            if (any(free_M_indices .eq. l)) then
 
               i_free_M = i_free_M + 1
               NNZ_dAdrho = 0
@@ -785,8 +786,7 @@ contains
               
                 end do
               end do
-
-
+            end if
           end if
 
       end do matrix_element_loop
