@@ -150,7 +150,7 @@ contains
   !---------------------------------------------------------------------
   subroutine find_free_elements(M, eleattr, num_free_regions, &
                            free_region_attr,num_free_M, free_M_indices)
-  ! INPUT
+    ! INPUT
     integer, dimension(:), intent(in) :: eleattr
     ! number of elements
     integer, intent(in) :: M
@@ -163,60 +163,106 @@ contains
 
     ! LOCAL variables
     integer :: i, j, allo_stat, count
-  !-------------------------------------------------------------------
-  ! initialise
-  num_free_M = 999
-  count = 0
+    !-------------------------------------------------------------------
+    ! initialise
+    num_free_M = 999
+    count = 0
 
-  ! determine num_free_M
-  do i = 1, M
-    do j = 1, num_free_regions
-      if (eleattr(i) .eq. free_region_attr(j)) then
-        count = count + 1
+    ! determine num_free_M
+    do i = 1, M
+      do j = 1, num_free_regions
+        if (eleattr(i) .eq. free_region_attr(j)) then
+          count = count + 1
+        end if
+      end do
+    end do
+
+    num_free_M = count
+
+
+    ! find free_M_indices
+    ! initialise
+    count = 0
+    ! allocate
+    allocate (free_M_indices(num_free_M),stat = allo_stat)
+      call allocheck(log_unit, allo_stat, &
+               "find_free_elements: error allocating array free_M_indices")
+    ! initialise
+    free_M_indices = 999
+
+    ! assign free element indices
+    do i = 1, M
+      do j = 1, num_free_regions
+        if (eleattr(i) .eq. free_region_attr(j)) then
+          count = count + 1
+          free_M_indices(count) = i
+        end if
+      end do
+    end do
+
+    ! Check if array size is correct
+    if (count .ne. num_free_M) then
+        call Write_Message (log_unit, &
+                       'free_M_indices array size does not match count!!!')
+    end if 
+
+    ! Check if arrays contain NaN elements or are zero
+    do i = 1,num_free_M
+      if (free_M_indices(i) .ne. free_M_indices(i)) then
+        call Write_Message (log_unit, &
+                       'free_M_indices array contains NaN elements!!!')
+      else if (free_M_indices(i) .eq. 0 .or. free_M_indices(i) .eq. 999) then
+        call Write_Message (log_unit, &
+             'free_M_indices array contains elements equal to zero or 999!!!')
       end if
     end do
-  end do
-
-  num_free_M = count
-
-
-  ! find free_M_indices
-  ! initialise
-  count = 0
-  ! allocate
-  allocate (free_M_indices(num_free_M),stat = allo_stat)
-    call allocheck(log_unit, allo_stat, &
-             "find_free_elements: error allocating array free_M_indices")
-  ! initialise
-  free_M_indices = 999
-
-  ! assign free element indices
-  do i = 1, M
-    do j = 1, num_free_regions
-      if (eleattr(i) .eq. free_region_attr(j)) then
-        count = count + 1
-        free_M_indices(count) = i
-      end if
-    end do
-  end do
-
-  ! Check if array size is correct
-  if (count .ne. num_free_M) then
-      call Write_Message (log_unit, &
-                     'free_M_indices array size does not match count!!!')
-  end if 
-
-  ! Check if arrays contain NaN elements or are zero
-  do i = 1,num_free_M
-    if (free_M_indices(i) .ne. free_M_indices(i)) then
-      call Write_Message (log_unit, &
-                     'free_M_indices array contains NaN elements!!!')
-    else if (free_M_indices(i) .eq. 0 .or. free_M_indices(i) .eq. 999) then
-      call Write_Message (log_unit, &
-           'free_M_indices array contains elements equal to zero or 999!!!')
-    end if
-  end do
 
   end subroutine find_free_elements
+
   !---------------------------------------------------------------------
+  !> @brief
+  !> !!! new in elfe3D_inv !!!
+  !> subroutine for transforming free model parameters with a log10 trafo
+  !---------------------------------------------------------------------
+  subroutine transform_model_parameters(num_free_M, free_rho, inv_model)
+
+    ! INTPUT
+    integer, intent(in) :: num_free_M
+    real(kind=dp), dimension(:), intent(in) :: free_rho
+
+    ! OUTPUT
+    real(kind=dp), dimension(:), intent(inout) :: inv_model
+
+    ! LOCAL VARIABLES
+    integer :: i
+    !-------------------------------------------------------------------
+    inv_model = log10(free_rho)
+
+    !print*, 'free_rho', free_rho
+    !print*, 'inv_model', inv_model
+  end subroutine transform_model_parameters
+
+  !---------------------------------------------------------------------
+  !> @brief
+  !> !!! new in elfe3D_inv !!!
+  !> subroutine for backtransforming free model parameters to resistivities
+  !> from a log10 trafo
+  !---------------------------------------------------------------------
+  subroutine backtransform_model_parameters(num_free_M, inv_model,free_rho)
+
+    ! INTPUT
+    integer, intent(in) :: num_free_M
+    real(kind=dp), dimension(:), intent(in) :: inv_model
+
+    ! OUTPUT
+    real(kind=dp), dimension(:), intent(inout) :: free_rho
+
+    ! LOCAL VARIABLES
+    integer :: i
+    !-------------------------------------------------------------------
+    free_rho = 10.0_dp**(inv_model)
+
+    !print*, 'inv_model', inv_model
+    !print*, 'free_rho', free_rho
+  end subroutine backtransform_model_parameters
 end module model_parameters

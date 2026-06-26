@@ -77,6 +77,10 @@ module elfe3d
   !             ...
   real(kind=dp), allocatable, dimension(:) :: forward_data
 
+  ! model output; currently vector with transfoirmed, free model parameters
+  real(kind=dp), allocatable, dimension(:) :: inv_model
+
+
 contains
 
   subroutine solve
@@ -285,6 +289,8 @@ contains
     integer :: num_free_M
     ! indices to map back to original forward mesh
     integer, allocatable, dimension(:) :: free_M_indices
+    ! resistivities of free model cells in free_M_indices order
+    real(kind=dp), allocatable, dimension(:) :: free_rho
 
     ! variables for assembling derivative wrt. un-transformed model 
     ! parameters for each element matrix in COO format
@@ -363,6 +369,7 @@ contains
     ! Deallocate sensitivity data
     if (allocated(Jvec)) deallocate(Jvec, JTvec, Jcols, Jrows)
     if (allocated(forward_data)) deallocate(forward_data)
+    if (allocated(inv_model)) deallocate(inv_model)
 
     !---------------------------------------------------------------------
     call cpu_time(start)  ! CPU time measurement start
@@ -479,7 +486,8 @@ contains
     ! Save element numbers/indices of free elements for Jacobian computation
     ! in free_M_indices
     if (output_sens == 1) then
-      call find_free_elements(M, eleattr, num_free_regions, free_region_attr, num_free_M, free_M_indices)
+      call find_free_elements(M, eleattr, num_free_regions, free_region_attr, &
+                                                 num_free_M, free_M_indices)
     end if 
 
     ! Reading element-neighbours with corresponding element numbers 
@@ -648,7 +656,7 @@ contains
     ! Allocating derivatives dAdrho in coordinate format
     if (output_sens == 1 .and. maxRefSteps .eq. 0) then
       allocate (dAdrho(num_free_M,36), dAdrhorow(num_free_M,36), &
-                dAdrhocol(num_free_M,36), stat = allo_stat)
+                dAdrhocol(num_free_M,36), free_rho (num_free_M), stat = allo_stat)
       call allocheck(log_unit, allo_stat, "Error allocating array dAdrho")
       ! initialise
       dAdrhorow = 0
@@ -656,6 +664,7 @@ contains
       dAdrho = (0.0_dp,0.0_dp) 
       NNZ_dAdrho = 0
       i_free_M = 0
+      free_rho = 0.0_dp
     end if
 
     ! Allocate output arrays for electric an magnetic fields
@@ -754,7 +763,13 @@ contains
             ! if current element is a free element for inversion
             if (any(free_M_indices .eq. l)) then
 
+              ! update counter
               i_free_M = i_free_M + 1
+
+              ! assign resistivity valkue to free model parameter array
+              free_rho(i_free_M) = rho(l)
+
+              ! initialise
               NNZ_dAdrho = 0
 
               ! system matrix derivatives for each free element,
@@ -1333,7 +1348,13 @@ contains
     if (output_sens == 1 .and. maxRefSteps .eq. 0) then
 
       !!! model to be transferred to inversion !!!
-      ! PR: to be added
+      ! allocate inversion model array
+      ! ToDo PR: must later be input too!
+      allocate (inv_model(num_free_M), stat = allo_stat)
+      call allocheck(log_unit, allo_stat, "Error allocating array inv_model")
+      ! initialise
+      inv_model = 0.0_dp
+      call transform_model_parameters(num_free_M, free_rho, inv_model)
 
       !!! forward data to be transferred to inversion !!!
       ! order E-fields and H-fields in real 1D array
@@ -1401,7 +1422,7 @@ contains
     if (allocated(EFields)) deallocate(EFields, HFields)
     if (allocated(free_region_attr)) deallocate(free_region_attr)
     if (allocated(free_M_indices)) deallocate(free_M_indices)
-    if (allocated(dAdrho)) deallocate(dAdrho, dAdrhocol, dAdrhorow)
+    if (allocated(dAdrho)) deallocate(dAdrho, dAdrhocol, dAdrhorow, free_rho)
     
     call Write_Message (log_unit, 'Allocated variables were deallocated')
 
