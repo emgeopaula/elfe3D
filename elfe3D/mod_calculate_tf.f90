@@ -456,25 +456,59 @@ contains
    !> @brief
    !> subroutine for ordering forward data for sensitivity calculation
    !> order in vector:
-   !> PR: to be updated
+   !>  currenty for single component of E and H fields)
+   !> sorted as:
+   !> Re Ex Freq1 Rec1
+   !> Re Ex Freq1 Rec2 
+   !>             ...
+   !> Re Ex Freq2 Rec1
+   !> Re Ex Freq2 Rec2
+   !>             ...
+   !> Im Ex Freq1 Rec1
+   !> Im Ex Freq1 Rec2 
+   !>             ...
+   !> Im Ex Freq2 Rec1
+   !> Im Ex Freq2 Rec2
+   !>             ...
    !---------------------------------------------------------------------
-   subroutine order_forward_data (Efields, Hfields, forward_data)
+   subroutine order_forward_data (Nfreq, num_rec, &
+                                  Efields, Hfields, forward_data)
    
      ! INPUT
      complex (kind=dp), dimension(:, :, :), intent(in) :: Efields, &
                                                           Hfields
+     integer, intent(in) :: Nfreq, num_rec
 
      ! OUTPUT
      real(kind=dp), dimension(:), intent(inout) :: forward_data
      
 
      ! LOCAL variables
-     integer :: i
+     integer :: irow, ifreq,irec,icomponent
      !-------------------------------------------------------------------
-     forward_data = 999.0_dp
+     ! initialise
+     ifreq = 0
+     irec = 0
+     icomponent = 0
+     irow = 1
+     forward_data = 0.0_dp
 
-     ! PR: to do:  fill forward_data with E & H fields
-      
+
+     ! PR: to do:  
+     ! user should choose which data should be input data for inversion 
+     ! from E & H field components, for now: Ex component
+     do ifreq = 1, Nfreq
+       ! receiver_loop
+       do irec = 1, num_rec
+       ! Real Ex-fields
+       forward_data(irow) = Real(Efields(ifreq,irec,1))
+       ! Imag Ex-fields
+       forward_data((size(forward_data)/2) + irow) = Aimag(Efields(ifreq,irec,1))
+       irow = irow + 1
+       end do
+     end do
+
+     ! print*, 'forward_data', forward_data
 
     !--------------------------------------------------------------------
     end subroutine order_forward_data
