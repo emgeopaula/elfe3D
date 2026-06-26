@@ -493,5 +493,37 @@ contains
 
   end subroutine compcsrcoo
 
+  !----------------------------------------------------------------------
+  !> @brief
+  !> SPARSEMUL function for calculating the product of a complex matrix
+  !> (dense) in COO format and a complex vector
+  !> Paula Rulff, June 2022.
+  !> original in emilia software
+  !----------------------------------------------------------------------
+  function COMPSPARSEMUL(dim, NNZ, A, row, col, vec)
+
+    ! INPUT
+    ! values of matrix, vector for multiplication
+    complex(kind=dp), dimension(:), intent(in) :: A, vec 
+    ! row and colum indices of matrix
+    integer, dimension(:), intent(in) ::row,col 
+    ! column-dimension of matrix and number of non-zeros in matrix
+    integer, intent(in) :: dim, NNZ 
+    !real(kind=dp) :: q ! optional factor
+    ! OUTPUT
+    complex(kind=dp), dimension(dim) :: COMPSPARSEMUL ! product
+    ! LOCAL variables
+    integer :: i
+
+
+    COMPSPARSEMUL = (0.0_dp,0.0_dp)
+
+    do i = 1,NNZ
+      COMPSPARSEMUL(row(i)) = COMPSPARSEMUL(row(i)) +  A(i) * vec(col(i))
+    end do
+
+    
+  end function COMPSPARSEMUL
+
 
 end module sparse_matrix_operations

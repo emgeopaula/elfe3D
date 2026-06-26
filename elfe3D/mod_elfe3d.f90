@@ -1363,17 +1363,17 @@ contains
       allocate (forward_data(Nfreq * num_rec * 2), stat = allo_stat)
       call allocheck(log_unit, allo_stat, &
                       "Error allocating array forward_data") 
-      print*, 'Size of forward_data', size(forward_data)
+      ! print*, 'Size of forward_data', size(forward_data)
       ! initialise
       forward_data = 0.0_dp
-      ! PR: dummy output from subroutine: 999.0
       call order_forward_data (Nfreq, num_rec, Efields, Hfields, forward_data)
 
       !!!! sensitivities to be transferred to inversion !!!
       ! calculate sensitivities
       ! allocation
       ! PR: change size to dynamic amount of data you want for inversion
-      allocate (Jvec(36),JTvec(36),Jrows(36),Jcols(36), stat = allo_stat)
+      allocate (Jvec(size(forward_data)),JTvec(num_free_M),&
+                Jrows(size(forward_data)),Jcols(num_free_M), stat = allo_stat)
       call allocheck(log_unit, allo_stat, &
                       "Error allocating array forward_data") 
       ! initialise
@@ -1381,11 +1381,10 @@ contains
       JTvec = 0.0_dp
       Jrows = 0
       Jcols = 0
-      !call compute_Jvec_JTvec(rho, num_free_M, free_M_indices, &
-      !                        dAdrho, dAdrhorow, dAdrhocol, &
-      !                        Jrows, Jcols, Jvec, JTvec)
-      ! PR: dummy output
-      call compute_Jvec_JTvec(Jrows, Jcols, Jvec, JTvec)
+
+      call compute_Jvec_JTvec(forward_data, inv_model, free_M_indices, &
+                              dAdrho, dAdrhorow, dAdrhocol, &
+                              Jrows, Jcols, Jvec, JTvec)
 
     end if
 
