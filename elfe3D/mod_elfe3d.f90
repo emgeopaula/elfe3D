@@ -61,9 +61,20 @@ module elfe3d
   ! number of columns corresponds to the model size (num_free_M)
   integer(kind=dp), allocatable, dimension(:) :: Jrows, Jcols
 
-  ! data output for inversion (E and H fields)
+  ! data output for inversion (currenty for single component of E and H fields)
   ! sorted as:
-  ! PR: decide on sorting
+  ! Re Ex Freq1 Rec1
+  ! Re Ex Freq1 Rec2 
+  !             ...
+  ! Re Ex Freq2 Rec1
+  ! Re Ex Freq2 Rec2
+  !             ...
+  ! Im Ex Freq1 Rec1
+  ! Im Ex Freq1 Rec2 
+  !             ...
+  ! Im Ex Freq2 Rec1
+  ! Im Ex Freq2 Rec2
+  !             ...
   real(kind=dp), allocatable, dimension(:) :: forward_data
 
 contains
@@ -348,7 +359,7 @@ contains
     ! Variables for MUMPS and pseudo MPI
     logical :: flag
 
-    ! Ne in elfe3D_INV
+    ! New in elfe3D_INV
     ! Deallocate sensitivity data
     if (allocated(Jvec)) deallocate(Jvec, JTvec, Jcols, Jrows)
     if (allocated(forward_data)) deallocate(forward_data)
@@ -1328,13 +1339,14 @@ contains
       ! order E-fields and H-fields in real 1D array
       ! allocation
       ! PR: change size to dynamic amount of data you want for inversion
-      allocate (forward_data(12), stat = allo_stat)
+      allocate (forward_data(Nfreq * num_rec * 2), stat = allo_stat)
       call allocheck(log_unit, allo_stat, &
                       "Error allocating array forward_data") 
+      print*, 'Size of forward_data', size(forward_data)
       ! initialise
       forward_data = 0.0_dp
       ! PR: dummy output from subroutine: 999.0
-      call order_forward_data (Efields, Hfields, forward_data)
+      call order_forward_data (Nfreq, num_rec, Efields, Hfields, forward_data)
 
       !!!! sensitivities to be transferred to inversion !!!
       ! calculate sensitivities

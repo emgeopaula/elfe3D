@@ -6,7 +6,7 @@ num_freq                1
 1.0
 10.0
 100.0
-num_rec                 73
+num_rec                 3
 200	0	-0.01
 225	0	-0.01
 250	0	-0.01
@@ -82,7 +82,7 @@ num_rec                 73
 2000	0	-0.01
 output_E_file           out/electric_fields
 output_H_file           out/magnetic_fields
-output_fields_vtk       1
+output_fields_vtk       0
 output_sens             1
 num_free_regions        1
 3
