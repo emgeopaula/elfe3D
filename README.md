@@ -9,7 +9,7 @@ Modelling with the total **el**ectric field approach using **f**inite **e**lemen
 
 for testing use 1D real array of log10 transformed resistivities, has to be also read in eventually and backtransformed to resistivities:
 
-inv_model = log10(10) = 1.0 (size 43 with current model)
+inv_model = log10(10) = 1.0 (size 43 with q1.8 model)
 
 - forward data as forward_data (1D real array) from subroutine order_forward_data in mod_calculate_tf.f90
 
