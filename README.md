@@ -11,7 +11,9 @@ forward data as forward_data (1D real array) from subroutine order_forward_data 
 
 for testing:
 
-forward_data = 999.0_dp
+with current input filet (three receivers), only Ex component written to forward_data
+
+forward_data = 4.3382144843313374E-005   2.9400615173455677E-005   1.9311748480728817E-005   3.0007340632069173E-009   2.6580499634428189E-009   2.3499257261151547E-009
 
 sensitivities as Jvec (1D real array), JTvec (1D real array), Jrows (1D integer array), Jcols (1D integer array) from subroutine compute_Jvec_JTvec in mod_sensitivities.f90
 
