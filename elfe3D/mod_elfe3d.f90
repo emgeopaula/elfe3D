@@ -300,6 +300,11 @@ contains
     integer :: NNZ_dAdrho
     integer :: i_free_M
 
+    ! additional fwd solutions of pseudo forward problem for JTvec
+    complex(kind=dp), allocatable, dimension(:,:) :: pseudo_v
+    ! additional fwdwd solutions of pseudo forward problem for Jvec
+    complex(kind=dp), allocatable, dimension(:,:,:) :: pseudo_u 
+
 
     !!!! ----------------------------!!!!
 
@@ -1359,7 +1364,7 @@ contains
       !!! forward data to be transferred to inversion !!!
       ! order E-fields and H-fields in real 1D array
       ! allocation
-      ! PR: change size to dynamic amount of data you want for inversion
+      ! PR: change 2 size to dynamic amount of data you want for inversion
       allocate (forward_data(Nfreq * num_rec * 2), stat = allo_stat)
       call allocheck(log_unit, allo_stat, &
                       "Error allocating array forward_data") 
@@ -1369,9 +1374,26 @@ contains
       call order_forward_data (Nfreq, num_rec, Efields, Hfields, forward_data)
 
       !!!! sensitivities to be transferred to inversion !!!
+
+      ! calculate pseudo forward problems
+      allocate (pseudo_v(Nfreq,E), pseudo_u(Nfreq,E, size(forward_data)), stat = allo_stat)
+      call allocheck(log_unit, allo_stat, &
+           "Error allocating additional pseudo-forward solution arrays v and u!")
+      ! initialise
+      pseudo_v = cmplx(0.0_dp, 0.0_dp)
+      pseudo_u = cmplx(0.0_dp, 0.0_dp)
+
+      call compute_pseudo_fwd(E, freq, &
+                              u1, v1, w1, &
+                              rec1_el, el2ed, &
+                              a_start, a_end, b_start, b_end, &
+                              c_start, c_end, d_start, d_end,&
+                              el2edl, ed_sign, Ve, mu, &
+                              pseudo_v, pseudo_u)
+
+
       ! calculate sensitivities
       ! allocation
-      ! PR: change size to dynamic amount of data you want for inversion
       allocate (Jvec(size(forward_data)),JTvec(num_free_M),&
                 Jrows(size(forward_data)),Jcols(num_free_M), stat = allo_stat)
       call allocheck(log_unit, allo_stat, &
@@ -1381,8 +1403,9 @@ contains
       JTvec = 0.0_dp
       Jrows = 0
       Jcols = 0
-
-      call compute_Jvec_JTvec(forward_data, inv_model, free_M_indices, &
+       
+      call compute_Jvec_JTvec(E, num_rec, freq, &
+                              forward_data, inv_model, free_M_indices, &
                               dAdrho, dAdrhorow, dAdrhocol, &
                               Jrows, Jcols, Jvec, JTvec)
 
@@ -1422,6 +1445,7 @@ contains
     if (allocated(free_region_attr)) deallocate(free_region_attr)
     if (allocated(free_M_indices)) deallocate(free_M_indices)
     if (allocated(dAdrho)) deallocate(dAdrho, dAdrhocol, dAdrhorow, free_rho)
+    if(allocated(pseudo_v)) deallocate(pseudo_v, pseudo_u)
     
     call Write_Message (log_unit, 'Allocated variables were deallocated')
 
