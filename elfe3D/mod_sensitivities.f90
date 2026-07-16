@@ -23,18 +23,27 @@ contains
   !> subroutine for obtaining Jacobian J times vector and 
   !> transposed Jacobian JT times vector in COO format
   !---------------------------------------------------------------------
-  subroutine compute_Jvec_JTvec(E, num_rec, freq, &
+  subroutine compute_Jvec_JTvec(E, num_rec, freq, rec_el, &
                                 forward_data, inv_model, free_M_indices, &
                                 dAdrho, dAdrhorow, dAdrhocol, &
+                                primal_solution, &
+                                pseudo_v, pseudo_u, &
                                 Jrows, Jcols, Jvec, JTvec)
 
   ! INPUT
   integer, intent(in) :: E, num_rec
   real(kind=dp), dimension(:), intent(in) :: freq 
+  integer, dimension(:), intent(in) :: rec_el
   real(kind=dp), dimension(:), intent(in)  :: forward_data, inv_model
   integer, dimension(:), intent(in)  :: free_M_indices
   complex(kind=dp), dimension(:,:), intent(in) :: dAdrho
   integer, dimension(:,:), intent(in) :: dAdrhorow, dAdrhocol
+  complex(kind=dp), dimension(:,:), intent(in) :: primal_solution
+  ! additional fwd solutions of pseudo forward problem for JTvec
+  complex(kind=dp), dimension(:,:), intent(in) :: pseudo_v
+  ! additional fwd solutions of pseudo forward problem for Jvec
+  complex(kind=dp), dimension(:,:,:), intent(in) :: pseudo_u 
+
 
   ! OUTPUT
   ! sensitivity output: Jacobian times vectors in COO format
@@ -49,44 +58,88 @@ contains
   real(kind=dp), dimension(:), intent(inout) :: JTvec 
 
   ! LOCAL VARIABLES
+  ! local product of dAdrho * solution
+  complex(kind=dp), allocatable, dimension(:) :: dAdrhoE
+  complex(kind=dp) :: dZdm
   real(kind=dp) :: drhodm 
-  integer :: i_free_M
+  real(kind=dp) :: w
+  integer :: i_free_M, iedge, ifreq, irec, i
+  integer :: allo_stat
      
-
   !-------------------------------------------------------------------
-   ! dummy entries
-   Jvec = 666.0_dp
-   JTvec = 444.0_dp
-   Jrows = 6
-   Jcols = 4
+   ! matrix entry indices
+   Jrows = [(i, i = 1, size(forward_data))]
+   Jcols = [(i, i = 1, size(inv_model))] ! PR (free_M_indices?, or 1-size inv_model?)
 
    ! allocation
+   allocate (dAdrhoE(E), stat = allo_stat)
+   call allocheck(log_unit, allo_stat, &
+                  "Compute_JvecJTvec: error allocating dAdrhoE array!")
 
 
    ! initialise
+   dAdrhoE = cmplx(0.0_dp, 0.0_dp, kind=dp)
+   w = 0.0_dp
+   drhodm = 0.0_dp
 
-
-   ! compute pseudo forward problems
 
    ! compute Jvec and JTvec
 
-     ! loop over frequencies
+   ! loop over frequencies
+   do ifreq = 1,size(freq)
 
-       ! loop over free_M
+     ! define angular frequency
+     w = 2.0_dp*pi*freq(ifreq)
+
+     ! loop over free_M
+     do i_free_M = 1, size(inv_model)
 
        ! to include model parameter transformation log10 in free element loop
-       ! drhodm = (10.0_dp**inv_model(i_free_M)) * log(10.0_dp)
+       drhodm = (10.0_dp**inv_model(i_free_M)) * log(10.0_dp)
 
-       ! compute dAdrhoE or do before?
+       ! compute dAdrho*Solution (including current angular frequency)
+       dAdrhoE(:) = COMPSPARSEMUL(E,36,dAdrho(i_free_M,:)*w, &
+                                       dAdrhorow(i_free_M,:), &
+                                       dAdrhocol(i_free_M,:), &
+                                       primal_solution(ifreq,:))
 
        ! loop over edges
+       do iedge = 1, E
 
          ! caclulate JTvec (sum over frequencies and edges)
+         JTvec(i_free_M) = JTvec(i_free_M) &
+                           + real(pseudo_v(ifreq,iedge) * dAdrhoE(iedge))
 
          ! loop over data entries/2 to calculate Jvec
+         ! PR: update for more than one data component
+         do irec= 1, size(rec_el)
+
+           ! caclulate "dZdm"
+           dZdm = (pseudo_u(ifreq,iedge,irec) &
+                   * dAdrhoE(iedge)) &
+                   * cmplx(drhodm, 0.0_dp, kind=dp)
+
+           ! sum over edges and elements, split real and imag
+           ! Real part of Jvec
+           Jvec(irec) = Jvec(irec) &
+                        + real(dZdm) * inv_model(i_free_M)
+           ! Imaginary part of Jvec
+           Jvec(size(rec_el)+irec) = Jvec(size(rec_el)+irec) &
+                                     + aimag(dZdm) * inv_model(i_free_M)
+
+
+         end do ! end do receiver loop
+
+       end do ! free element loop
+
+     end do ! free element loop
+
+   end do ! frequency loop
 
 
 
+   ! deallocate local arrays
+   deallocate(dAdrhoE)
   
 
       

@@ -1461,10 +1461,17 @@ contains
       Jrows = 0
       Jcols = 0
        
-      call compute_Jvec_JTvec(E, num_rec, freq, &
+      call compute_Jvec_JTvec(E, num_rec, freq, rec1_el, &
                               forward_data, inv_model, free_M_indices, &
                               dAdrho, dAdrhorow, dAdrhocol, &
+                              primal_solution, &
+                              pseudo_v, pseudo_u, &
                               Jrows, Jcols, Jvec, JTvec)
+
+      print*,'JTvec', JTvec
+      print*,'Jcols', Jcols
+      print*,'Jvec', Jvec
+      print*,'Jrows', Jrows
 
     end if
 
