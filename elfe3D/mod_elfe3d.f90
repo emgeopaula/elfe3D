@@ -300,6 +300,13 @@ contains
     integer :: NNZ_dAdrho
     integer :: i_free_M
 
+    ! arrays to save forward solution and system matrix for all frequencies
+    complex(kind=dp), allocatable, dimension(:,:) :: system_matrix, &
+                                                     primal_solution
+    integer, allocatable, dimension(:,:) :: jsystem_matrix, &
+                                            isystem_matrix
+
+
     ! additional fwd solutions of pseudo forward problem for JTvec
     complex(kind=dp), allocatable, dimension(:,:) :: pseudo_v
     ! additional fwdwd solutions of pseudo forward problem for Jvec
@@ -1025,6 +1032,7 @@ contains
 
         call Write_Message (log_unit, &
                           'Solving primal and dual problems with PARDISO')
+        call Write_Message (log_unit, '**********************************')
 
         seconds_solve = omp_get_wtime ( ) ! timing solve
 
@@ -1037,6 +1045,7 @@ contains
 
         call Write_Message (log_unit, &
                             'Solving primal and dual problems with MUMPS')
+        call Write_Message (log_unit, '**********************************')
 
         ! back conversion into COO format 
         ! -> change column index array iAgcsr_o to IAgcoo_o
@@ -1308,6 +1317,44 @@ contains
       
       end if !(end IF last refinement step)
 
+
+      
+      ! -----------------------------------------------------------------
+      ! Saving primal solution and system matrix arrays for optional 
+      ! sensitivity computation
+      ! current system matrix saved in Agcsr_oo, jAgcsr_oo, iAgcoo_o
+      ! -----------------------------------------------------------------
+      ! new in elfe3D_Inv
+      if (output_sens == 1 .and. maxRefSteps .eq. 0) then
+
+          ! allocate
+          if (.not. allocated(system_matrix)) then
+            allocate (system_matrix(Nfreq, size(Agcsr_oo)), &
+                      jsystem_matrix(Nfreq, size(jAgcsr_oo)), &
+                      isystem_matrix(Nfreq, size(iAgcoo_o)), &
+                      primal_solution(Nfreq, E), &
+                      stat = allo_stat)
+            call allocheck(log_unit, allo_stat, &
+                      "error allocating solution and system matrix &
+                       arrays for optional sensitivity computation")
+            ! initilise
+            system_matrix = cmplx(0.0_dp, 0.0_dp, kind=dp)
+            jsystem_matrix = 0
+            isystem_matrix= 0
+            primal_solution = cmplx(0.0_dp, 0.0_dp, kind=dp)
+          end if
+
+          ! fill with values for current frequency numfreq
+          system_matrix(numfreq,:) = Agcsr_oo
+          jsystem_matrix(numfreq,:) = jAgcsr_oo
+          isystem_matrix(numfreq,:) = iAgcoo_o
+          primal_solution(numfreq,:) = S
+
+          call Write_Message (log_unit, '**********************************')
+          call Write_Message (log_unit, 'Matrix saved for current frequency')
+      
+      end if
+
       ! -----------------------------------------------------------------
       ! Cleaning in frequency loop variables
       ! -----------------------------------------------------------------
@@ -1320,11 +1367,13 @@ contains
       if (allocated(Wg)) deallocate(Wg)
       if (allocated(iAgcoo_o)) deallocate(iAgcoo_o)
 
+      call Write_Message (log_unit, '**********************************')
+      call Write_Message (log_unit, 'Frequency-loop arrays are deallocated')
+
     ! --------------------------------------------------------------------
     ! end loop over frequencies
     ! --------------------------------------------------------------------
     end do frequency_loop
-
 
     ! Write output files 
     ! receiver_loop
@@ -1376,12 +1425,18 @@ contains
       !!!! sensitivities to be transferred to inversion !!!
 
       ! calculate pseudo forward problems
-      allocate (pseudo_v(Nfreq,E), pseudo_u(Nfreq,E, size(forward_data)), stat = allo_stat)
+      allocate (pseudo_v(Nfreq,E), pseudo_u(Nfreq,E, size(forward_data)/2), &
+                stat = allo_stat)
       call allocheck(log_unit, allo_stat, &
            "Error allocating additional pseudo-forward solution arrays v and u!")
       ! initialise
-      pseudo_v = cmplx(0.0_dp, 0.0_dp)
-      pseudo_u = cmplx(0.0_dp, 0.0_dp)
+      pseudo_v = cmplx(0.0_dp, 0.0_dp, kind=dp)
+      pseudo_u = cmplx(0.0_dp, 0.0_dp, kind=dp)
+
+      call Write_Message (log_unit, '**********************************')
+      call Write_Message (log_unit, &
+                          'Solving pseudo-forward problems with MUMPS')
+      call Write_Message (log_unit, '**********************************')
 
       call compute_pseudo_fwd(E, freq, &
                               u1, v1, w1, &
@@ -1389,6 +1444,8 @@ contains
                               a_start, a_end, b_start, b_end, &
                               c_start, c_end, d_start, d_end,&
                               el2edl, ed_sign, Ve, mu, &
+                              system_matrix, jsystem_matrix, &
+                              isystem_matrix, &
                               pseudo_v, pseudo_u)
 
 
@@ -1446,6 +1503,11 @@ contains
     if (allocated(free_M_indices)) deallocate(free_M_indices)
     if (allocated(dAdrho)) deallocate(dAdrho, dAdrhocol, dAdrhorow, free_rho)
     if(allocated(pseudo_v)) deallocate(pseudo_v, pseudo_u)
+
+    if (allocated(system_matrix)) deallocate (system_matrix,&
+                                              jsystem_matrix, &
+                                              isystem_matrix, &
+                                              primal_solution)
     
     call Write_Message (log_unit, 'Allocated variables were deallocated')
 

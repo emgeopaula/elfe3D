@@ -11,6 +11,7 @@
 module sensitivities
 
   use mod_util
+  use solvers
   use sparse_matrix_operations
 
   implicit none
@@ -107,6 +108,8 @@ contains
                                 a_start, a_end, b_start, b_end, &
                                 c_start, c_end, d_start, d_end,&
                                 el2edl, ed_sign, Ve, mu, &
+                                system_matrix, jsystem_matrix, &
+                                isystem_matrix, &
                                 pseudo_v, pseudo_u)
 
     ! INPUT
@@ -123,6 +126,8 @@ contains
     real(kind=dp), dimension(:,:), intent(in) :: ed_sign
     real(kind=dp), dimension(:), intent(in) :: Ve
     real(kind=dp), dimension(:), intent(in) :: mu
+    complex(kind=dp), dimension(:,:), intent(in) :: system_matrix
+    integer, dimension(:,:), intent(in) :: jsystem_matrix, isystem_matrix
 
 
 
@@ -151,38 +156,59 @@ contains
     real(kind=dp), dimension(3) :: grad_Lstart
     real(kind=dp), dimension(3) :: grad_Lend
 
-    ! RHS per datum for both source polarisations, solution v per frequency
-    complex(kind=dp), allocatable, dimension(:,:) :: g_datum!, v_freq, t, u_freq
-    ! RHS for both source polarisations and all sources
-    !complex(kind=dp), allocatable, dimension(:,:,:) :: g 
+    ! arrays for pseudo forward solutions
+    complex(kind=dp), allocatable, dimension(:) :: g_datum, g, pseudo_v_freq
+    complex(kind=dp), allocatable, dimension(:,:) :: t, pseudo_u_freq, qq_array
 
     !-------------------------------------------------------------------------------
     ! PR: check + and - signs because convention is different from emilia!
     ! allocation
     allocate (eN(E,3), &
               hN(E,3), &
-              g_datum(E,2), &
               stat = allo_stat)
     call allocheck(log_unit, allo_stat, &
-          "compute_pseudo_fwd: error allocating arrays for interpolator vectors!")
+          "compute_pseudo_fwd: error allocating arrays for interp vectors!")
+
+    allocate (g_datum(E), &
+              g(E), &
+              pseudo_v_freq(E), &
+              stat = allo_stat)
+    call allocheck(log_unit, allo_stat, &
+     "compute_pseudo_fwd: error allocating arrays for pseudo fwd computation!")
+
+    !PR: adapt with more data per receiver
+    allocate (t(E, size(rec_el)), &
+              qq_array(E, size(rec_el)), &
+              pseudo_u_freq(E, size(rec_el)), &
+              stat = allo_stat)
+    call allocheck(log_unit, allo_stat, &
+     "compute_pseudo_fwd: error allocating arrays for pseudo fwd computation 2!")
 
     ! initialise
     ifreq = 1
     grad_Lstart = 0.0_dp
     grad_Lend = 0.0_dp
-    eN = cmplx(0.0_dp, 0.0_dp)
-    hN = cmplx(0.0_dp, 0.0_dp)
-    factor = cmplx(0.0_dp, 0.0_dp)
-    factor_mag = cmplx(0.0_dp, 0.0_dp)
-    g_datum = cmplx(0.0_dp, 0.0_dp)
+    eN = cmplx(0.0_dp, 0.0_dp, kind=dp)
+    hN = cmplx(0.0_dp, 0.0_dp, kind=dp)
+    factor = cmplx(0.0_dp, 0.0_dp, kind=dp)
+    factor_mag = cmplx(0.0_dp, 0.0_dp, kind=dp)
+    g_datum = cmplx(0.0_dp, 0.0_dp, kind=dp)
+
+    g = cmplx(0.0_dp, 0.0_dp, kind=dp)
+    pseudo_v_freq = cmplx(0.0_dp, 0.0_dp, kind=dp)
+    t = cmplx(0.0_dp, 0.0_dp, kind=dp)
+    qq_array = cmplx(0.0_dp, 0.0_dp, kind=dp)
+    pseudo_u_freq = cmplx(0.0_dp, 0.0_dp, kind=dp)
+
 
     ! data item counter
+    ! PR use to have more data items per receiver than just Ex
     idxf = 0
 
     do ifreq = 1,size(freq)
-
-      !if (allocated(g)) g = cmplx(0.0_dp, 0.0_dp)
+      
       ! initialise
+      if (allocated(g)) g = cmplx(0.0_dp, 0.0_dp, kind=dp)
       idxf = 0
       irec = 0
 
@@ -197,7 +223,7 @@ contains
         ! calculate factor for magnetic interpolator vector
         ! (1/-(i*w*mu))
         !!!! PR: check sign!!!
-        factor_mag = cmplx(0.0_dp, 0.0_dp)
+        factor_mag = cmplx(0.0_dp, 0.0_dp, kind=dp)
         factor_mag = cmplx(0.0_dp, &
                            -(1.0_dp/(2.0_dp*pi*freq(ifreq) &
                             *(mu(rec_el(irec))))), &
@@ -207,8 +233,8 @@ contains
         ! re-initialise
         grad_Lstart = 0.0_dp
         grad_Lend = 0.0_dp
-        eN = cmplx(0.0_dp, 0.0_dp)
-        hN = cmplx(0.0_dp, 0.0_dp)
+        eN = cmplx(0.0_dp, 0.0_dp, kind=dp)
+        hN = cmplx(0.0_dp, 0.0_dp, kind=dp)
 
         do l = 1,6 ! edge loop
            ! calculate grad Lstart and grad Lend vectors
@@ -263,11 +289,49 @@ contains
                                                   * b_end(rec_el(irec),l))/) &
                                                   * ed_sign(rec_el(irec),l)), &
                                                   kind=dp)
-        end do
+        end do ! edge loop
 
+        ! PR: adapt to more than Ex component later, check sign
+        g_datum = -eN(:,1)
 
+        ! building vector for JTvec calculation
+        ! for sensitivity test with perturbation method:
+        qq_array(ifreq,irec) = (1.0_dp, 0.0_dp)
+
+        ! sum up for all data at one frequency for JTvec calculation only
+        ! PR: now only for Ex component!
+        g(:) = g(:) + CONJG(qq_array(ifreq,irec)) * g_datum
+
+        ! do not sum up data items for Jvec calculation
+        ! PR: change irec to idata later and add other components
+        t(:,irec) = g_datum
 
       end do ! receiver loop
+
+      ! solve pseudo forward problem for JTvec, solution: pseudo_v
+      pseudo_v_freq = cmplx(0.0_dp, 0.0_dp, kind=dp)
+      call mumps_solving(system_matrix(ifreq,:), &
+                         jsystem_matrix(ifreq,:), &
+                         isystem_matrix(ifreq,:), &
+                         g(:), pseudo_v_freq, 1)
+
+      pseudo_v(ifreq,:) = pseudo_v_freq
+      call Write_Message (log_unit, '*******************************************')
+      call Write_Message (log_unit, 'pseudo forward problem for JTvec solved')
+      call Write_Message (log_unit, '*******************************************')
+
+      ! solve pseudo forward problem for Jvec, solution: pseudo_u
+      pseudo_u_freq = cmplx(0.0_dp, 0.0_dp, kind=dp)
+      call mumps_solving_multiple_RHS (system_matrix(ifreq,:), &
+                                       jsystem_matrix(ifreq,:), &
+                                       isystem_matrix(ifreq,:), &
+                                       t, pseudo_u_freq, size(rec_el))
+
+      call Write_Message (log_unit, '*******************************************')
+      call Write_Message (log_unit, 'pseudo forward problems for Jvec solved')
+      call Write_Message (log_unit, '*******************************************')
+
+      pseudo_u(ifreq,:,:) = pseudo_u_freq
 
     end do ! frequency loop
 
@@ -275,14 +339,11 @@ contains
     ! deallocate local arrays
     if (allocated(eN)) deallocate(eN)
     if (allocated(hN)) deallocate(hN)
-    !if (allocated(g)) deallocate(g)
+    if (allocated(g)) deallocate(g)
     if (allocated(g_datum)) deallocate(g_datum)
-    !if (allocated(v_freq)) deallocate(v_freq)
-    !if (allocated(t)) deallocate(t)
-    !if (allocated(u_freq)) deallocate(u_freq)
-
-
-
+    if (allocated(pseudo_v_freq)) deallocate(pseudo_v_freq)
+    if (allocated(t)) deallocate(t)
+    if (allocated(pseudo_u_freq)) deallocate(pseudo_u_freq)
 
     end subroutine compute_pseudo_fwd
    

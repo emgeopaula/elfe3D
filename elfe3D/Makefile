@@ -46,7 +46,7 @@ OBJUTIL = -L$(MUMPS_ROOT)/lib -lpthread -lm -lzmumps -lmumps_common -lesmumps -l
 ifeq ($(findstring gfortran,${FCC}),gfortran) 
 
 # compiler flags
-FFLAGS = -Ofast -march=native -mtune=native -mfma -malign-data=cacheline -ffree-form -ftree-vectorize -ftree-vectorizer-verbose=2 -fopt-info-vec -fopenmp -fPIC
+FFLAGS = -Ofast -march=native -mtune=native -mfma -malign-data=cacheline -ffree-form -ftree-vectorize -ftree-vectorizer-verbose=2 -fopt-info-vec -fopenmp -fPIC -pedantic -Wall
 FFLAGS += -pg 
 #
 # for warnings you can include here: 
@@ -133,4 +133,4 @@ python: libelfe3d.a
 .PHONY: clean
 
 clean:
-		rm -f *.o *.mod *.a *.so in/*.vol elfe3d elfe3d*.so
+		rm -f *.o *.mod *.a *.so gmon.out in/*.vol elfe3d elfe3d*.so
