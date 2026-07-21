@@ -9,7 +9,7 @@ Modelling with the total **el**ectric field approach using **f**inite **e**lemen
 
 for testing use 1D real array of log10 transformed resistivities, has to be also read in eventually and backtransformed to resistivities:
 
-inv_model = log10(10) = 1.0 (size 43 with q1.8 model)
+inv_model = log10(10) = 1.0 (size 40 with tetgen -pq1.8kAaen CSEM_input_model.poly )
 
 - forward data as forward_data (1D real array) from subroutine order_forward_data in mod_calculate_tf.f90
 
@@ -22,10 +22,10 @@ forward_data = 4.44562188E-05   2.80089204E-05   1.97479819E-05   3.22833081E-09
 - sensitivities as Jvec (1D real array), JTvec (1D real array), Jrows (1D integer array), Jcols (1D integer array) from subroutine compute_Jvec_JTvec in mod_sensitivities.f90
 
 for testing:
-   Jvec = 666.0_dp
+   Jvec = -9.6063503026389437E-009  -1.0023161150621066E-008  -1.0459021573926215E-008  -6.2032370033720292E-011  -6.4146007720678829E-011 -6.6452234674365855E-011
    JTvec = 444.0_dp
-   Jrows = 6
-   Jcols = 4
+   Jrows = 1                    2                    3                    4                    5                    6
+   Jcols = 1, 2, ..., 40
 
 _About:_
 
