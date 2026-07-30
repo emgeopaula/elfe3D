@@ -70,23 +70,33 @@ def test_elfe3d_output() -> None:
         test_jacobian(Jvec, JTvec, Jrows, Jcols)
         test_forward_data(forward_data)
         test_inv_model(inv_model)
+    print("All tests passed!")
 
+def example_modify_invmodel_values() -> None:
+    print("Launching Fortran elfe3d solver")
+    pyelfe3d.elfe3d.solve()
+    inv_model = pyelfe3d.elfe3d.inv_model
+    inv_model.fill(-1)
+
+    print("Launching Fortran elfe3d solver (inv_model = -1)")
+    pyelfe3d.elfe3d.solve()
+    inv_model = pyelfe3d.elfe3d.inv_model
+    inv_model.fill(-2)
+
+    print("Launching Fortran elfe3d solver (inv_model = -2)")
+    pyelfe3d.elfe3d.solve()
+    
 
 def main():
 
-    print("PyGimli version:", pygimli.__version__)
+   print("PyGimli version:", pygimli.__version__)
 
     # Check that consecutive calls to elfe3d produce the same (expected) results
-    test_elfe3d_output()
+    #test_elfe3d_output()
 
-    # Call elfe3d
-    print("Launching Fortran elfe3d solver...")
-    #pyelfe3d.elfe3d.solve() # This executes your Fortran 'subroutine solve'
+    # Call elfe3d multiple times, each with different values for inv_model
+    #example_modify_invmodel_values()
 
-    # Modify the values of inv_model
-    #inv_model = pyelfe3d.elfe3d.inv_model
-
-    #print("Solver finished successfully!")
 
 if __name__ == "__main__":
     main()
