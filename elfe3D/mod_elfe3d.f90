@@ -291,6 +291,8 @@ contains
     integer, allocatable, dimension(:) :: free_M_indices
     ! resistivities of free model cells in free_M_indices order
     real(kind=dp), allocatable, dimension(:) :: free_rho
+    ! index counter
+    integer :: iindex
 
     ! variables for assembling derivative wrt. un-transformed model 
     ! parameters for each element matrix in COO format
@@ -562,6 +564,16 @@ contains
 
     ! Get region attributes from eleattr and assign to model parameters
     call read_model_param(eleattr, M, rho, mu)
+
+    ! NEW in elfe3D_INV
+    ! if the inv_model got updated by pygimli, replace subset of rho values 
+    ! with respective inv_model values backtransformed from log10 transformation
+    if(allocated(inv_model)) then
+      do iindex = 1,num_free_M
+        rho(free_M_indices(iindex)) = 10.0_dp**(inv_model(iindex))
+        print*,'rho(free_M_indices(iindex))', rho(free_M_indices(iindex))
+      end do
+    end if
     
     call Write_Message (log_unit, '*************************************')
     ! Read source definitions
@@ -783,7 +795,7 @@ contains
               ! update counter
               i_free_M = i_free_M + 1
 
-              ! assign resistivity valkue to free model parameter array
+              ! assign resistivity value to free model parameter array
               free_rho(i_free_M) = rho(l)
 
               ! initialise
