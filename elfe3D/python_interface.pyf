@@ -10,6 +10,7 @@ python module pyelfe3d
       integer(kind=8) dimension(:), allocatable :: Jrows
       integer(kind=8) dimension(:), allocatable :: Jcols
       double precision dimension(:), allocatable :: forward_data
+      double precision dimension(:), allocatable :: inv_model
 
       ! Expose main solver
       subroutine solve
