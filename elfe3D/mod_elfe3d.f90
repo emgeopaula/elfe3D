@@ -381,8 +381,13 @@ contains
     ! Deallocate sensitivity data
     if (allocated(Jvec)) deallocate(Jvec, JTvec, Jcols, Jrows)
     if (allocated(forward_data)) deallocate(forward_data)
-    if (allocated(inv_model)) deallocate(inv_model)
-
+    ! Do not deallocate inv_model, because it got updated by pygimli
+    if (allocated(inv_model)) then
+      call Write_Message (log_unit, &
+            'Your inversion model got updated by pygimli.')
+      ! test output
+      print *, 'inv_model ', inv_model
+    end if
     !---------------------------------------------------------------------
     call cpu_time(start)  ! CPU time measurement start
     seconds = omp_get_wtime ( ) ! Wall time measurments start
@@ -513,7 +518,7 @@ contains
     print *,M,'Elements'
     print *,E,'Edges (dof)'
     if (output_sens == 1 .and. maxRefSteps .eq. 0) then
-    print *,num_free_M,'Elements for Jacobian'
+    print *,num_free_M,'Free elements for inversion'
     end if
 
     !---------------------------------------------------------------------
