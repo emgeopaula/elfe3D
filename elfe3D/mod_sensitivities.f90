@@ -401,8 +401,17 @@ contains
     contains
 
       ! subroutine to read in observed data and data errors from datafile
-      ! located in /in and specified in 
+      ! located in /in and specified in elfe3D_input.txt
       subroutine read_observed_data
+        ! open elfe3D_input.txt and check for line with 'input_data_file'
+
+        ! read in filename (d_obs.txt)
+
+        ! open d_obs.txt
+
+        ! read data and data errors (same structure as qq_array (ifreq, irec))
+
+        
       end subroutine read_observed_data
     end subroutine compute_pseudo_fwd
    
