@@ -398,6 +398,12 @@ contains
     if (allocated(t)) deallocate(t)
     if (allocated(pseudo_u_freq)) deallocate(pseudo_u_freq)
 
+    contains
+
+      ! subroutine to read in observed data and data errors from datafile
+      ! located in /in and specified in 
+      subroutine read_observed_data
+      end subroutine read_observed_data
     end subroutine compute_pseudo_fwd
    
 
