@@ -1407,10 +1407,12 @@ contains
     if (output_sens == 1 .and. maxRefSteps .eq. 0) then
 
       !!! model to be transferred to inversion !!!
-      ! allocate inversion model array
-      ! ToDo PR: must later be input too!
-      allocate (inv_model(num_free_M), stat = allo_stat)
-      call allocheck(log_unit, allo_stat, "Error allocating array inv_model")
+      ! allocate inversion model array only if its not yet allocated
+      ! which is only the case for the iteration 0
+      if (.not. allocated(inv_model)) then
+        allocate (inv_model(num_free_M), stat = allo_stat)
+        call allocheck(log_unit, allo_stat, "Error allocating array inv_model")
+      end if
       ! initialise
       inv_model = 0.0_dp
       call transform_model_parameters(num_free_M, free_rho, inv_model)
