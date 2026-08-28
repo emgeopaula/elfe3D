@@ -163,6 +163,7 @@ contains
                                 el2edl, ed_sign, Ve, mu, &
                                 system_matrix, jsystem_matrix, &
                                 isystem_matrix, &
+                                Efields, Efields_obs, Efields_err, &
                                 pseudo_v, pseudo_u)
 
     ! INPUT
@@ -181,6 +182,13 @@ contains
     real(kind=dp), dimension(:), intent(in) :: mu
     complex(kind=dp), dimension(:,:), intent(in) :: system_matrix
     integer, dimension(:,:), intent(in) :: jsystem_matrix, isystem_matrix
+
+    ! arrays for observed data and errors
+    ! PR: update to also H-fields
+    complex(kind=dp), dimension(:, :, :), intent(in) :: Efields_obs, &
+                                                        Efields_err
+    ! arrays for synthetic data
+    complex(kind=dp), dimension(:, :, :), intent(in) :: Efields
 
 
 
@@ -231,7 +239,7 @@ contains
 
     !PR: adapt with more data per receiver
     allocate (t(E, size(rec_el)), &
-              qq_array(E, size(rec_el)), &
+              qq_array(size(freq), size(rec_el)), &
               pseudo_u_freq(E, size(rec_el)), &
               stat = allo_stat)
     call allocheck(log_unit, allo_stat, &
@@ -348,8 +356,13 @@ contains
         g_datum = -eN(:,1)
 
         ! building vector for JTvec calculation
-        ! for sensitivity test with perturbation method:
-        qq_array(ifreq,irec) = (1.0_dp, 0.0_dp)
+        ! for sensitivity test with perturbation method use:
+        ! qq_array(ifreq,irec) = (1.0_dp, 0.0_dp)
+        ! PR: with input data and errors use qq_array = (dobs-dsyn)/error**2:
+        ! PR: now for Ex, update for more field components!
+        qq_array(ifreq,irec) = (Efields_obs(ifreq,irec, 1) &
+                               -Efields(ifreq,irec, 1)) &
+                               / (Efields_err(ifreq,irec, 1)**D2)
 
         ! sum up for all data at one frequency for JTvec calculation only
         ! PR: now only for Ex component!
@@ -398,22 +411,131 @@ contains
     if (allocated(t)) deallocate(t)
     if (allocated(pseudo_u_freq)) deallocate(pseudo_u_freq)
 
-    contains
+  end subroutine compute_pseudo_fwd
 
-      ! subroutine to read in observed data and data errors from datafile
-      ! located in /in and specified in elfe3D_input.txt
-      subroutine read_observed_data
-        ! open elfe3D_input.txt and check for line with 'input_data_file'
+  !---------------------------------------------------------------------
+  !> @brief
+  !> subroutine to read in observed data and data errors from datafile
+  !> located in /in and specified in elfe3D_input.txt
+  !---------------------------------------------------------------------
+  subroutine read_observed_data(DataFile, Nfreq, num_rec, &
+                                Efields_obs, Efields_err, &
+                                observed_data, errors)
 
-        ! read in filename (d_obs.txt)
+    ! INPUT
+    character(len = 255), intent(in) :: DataFile
+    integer, intent(in) :: Nfreq, num_rec
 
-        ! open d_obs.txt
+    ! OUTPUT
+    complex(kind=dp), dimension(:, :, :), intent(inout) :: Efields_obs, &
+                                                             Efields_err
+    real(kind=dp), dimension(:), intent(inout) :: observed_data, errors
 
-        ! read data and data errors (same structure as qq_array (ifreq, irec))
+    ! LOCAL VARIABLES
 
-        
-      end subroutine read_observed_data
-    end subroutine compute_pseudo_fwd
+    ! counters
+    integer :: ifreq, irec, irow, maxrow
+    integer :: in_unit = 25
+    integer :: OpenCode, ReadCode, ctmpCode
+    integer :: opening
+    real :: dummy_freq
+
+    ! dummy data variables
+    real(kind=dp) :: REx, Err_REx, IEx, Err_IEx, &
+                     REy, Err_REy, IEy, Err_IEy, &
+                     REz, Err_REz, IEz, Err_IEz
+    
+    ! -------------------------------------------------------------------
+    ! open input datafile
+    open (in_unit, file = trim(DataFile), status='old', &
+                   action = 'read', iostat = opening)
+
+    ! was opening successful?
+    if (opening /= 0) then
+        call Write_Error_Message(log_unit, &
+        'define_output: file '//trim(DataFile)//' could not be opened')
+    else
+       ! read data and data errors and write into Efields_obs, Efields_err
+       write (*,*) "Reading file with input data: ", trim(DataFile)
+       ! initialise
+       ifreq = 0
+       irec = 0
+       irow = 1
+       maxrow = Nfreq*num_rec
+       REx = 0.0_dp
+       Err_REx = 0.0_dp
+       IEx = 0.0_dp
+       Err_IEx = 0.0_dp
+       REy = 0.0_dp
+       Err_REy = 0.0_dp
+       IEy = 0.0_dp
+       Err_IEy = 0.0_dp
+       REz = 0.0_dp
+       Err_REz = 0.0_dp
+       IEz = 0.0_dp
+       Err_IEz = 0.0_dp
+       
+       ! frequency loop
+       do ifreq = 1, Nfreq
+         ! receiver_loop
+         do irec = 1, num_rec
+            read (in_unit, fmt=*, iostat=ReadCode) dummy_freq, &
+                  REx, Err_REx, IEx, Err_IEx, &
+                  REy, Err_REy, IEy, Err_IEy, &
+                  REz, Err_REz, IEz, Err_IEz
+         ! asingn to complex arrays
+         Efields_obs(ifreq,irec,1) = cmplx(REx, IEx, kind=dp)
+         Efields_err(ifreq,irec,1) = cmplx(Err_REx, Err_IEx, kind=dp)
+         Efields_obs(ifreq,irec,2) = cmplx(REy, IEy, kind=dp)
+         Efields_err(ifreq,irec,2) = cmplx(Err_REy, Err_IEy, kind=dp)
+         Efields_obs(ifreq,irec,3) = cmplx(REz, IEz, kind=dp)
+         Efields_err(ifreq,irec,3) = cmplx(Err_REz, Err_IEz, kind=dp)
+         ! go to next row in file
+         irow = irow + 1
+         end do
+       end do
+       ! check
+       if (maxrow /= irow-1) then
+           call Write_Error_Message(log_unit, &
+           'check input data file '//trim(DataFile)//' consistency')
+       end if
+       ! print test
+       print*, Efields_obs, Efields_err
+       ! close input file
+       close (unit = in_unit)
+    end if
+
+
+    ! order the same way as forward data to observed_data, errors
+    ! PR: to do:  
+    ! user should choose which data should be input data for inversion 
+    ! from E & H field components, for now: Ex component
+    ! initialise
+    ifreq = 0
+    irec = 0
+    irow = 1
+    ! fill vectors
+    do ifreq = 1, Nfreq
+      ! receiver_loop
+      do irec = 1, num_rec
+      ! Real Ex-fields
+      observed_data(irow) = Real(Efields_obs(ifreq,irec,1))
+      ! Real Ex-errors
+      errors(irow) = Real(Efields_err(ifreq,irec,1))
+      ! Imag Ex-fields
+      observed_data((size(observed_data)/2) + irow) = &
+                                              Aimag(Efields_obs(ifreq,irec,1))
+      ! Imag Ex-errors
+      errors((size(observed_data)/2) + irow) = Aimag(Efields_err(ifreq,irec,1))
+      irow = irow + 1
+      end do
+    end do
+    ! print test
+    print*, 'observed_data', observed_data
+    print*, 'errors', errors
+
+    
+  end subroutine read_observed_data
    
 
 end module sensitivities

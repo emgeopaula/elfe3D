@@ -938,5 +938,53 @@ contains
    !--------------------------------------------------------------------
   end subroutine define_J_domain
 
+  !---------------------------------------------------------------------
+  !> @brief
+  !> subroutine for defining input data file name
+  !> Define the following in input file: input_data_file
+  !---------------------------------------------------------------------
+  subroutine define_data (DataFile)
+  
+    ! OUTPUT
+    character(len = 255), intent(out) :: DataFile
+    
+    ! LOCAL variables:
+    character(len = 255) :: StringName, StringEnding
+    !-------------------------------------------------------------------
+    ! Read from elfe3D_input.txt
+    ! open the file
+    open (in_unit, file = trim(FileName), status='old', &
+                   action = 'read', iostat = opening)
+
+    ! was opening successful?
+    if (opening /= 0) then
+        call Write_Error_Message(log_unit, &
+        'define_mesh: file '//trim(FileName)//' could not be opened')
+    else
+       ! read data file name
+       read (unit=in_unit, fmt=lfm, iostat=ReadCode) ctmp
+       line_read_loop: do while (ReadCode == 0)
+          ! model_file_name 
+          if (index(ctmp,'input_data_file ') > 0) then
+             bwrd = BegWrd(ctmp,2)
+             ewrd = EndWrd(ctmp,2)
+             read (ctmp(bwrd:ewrd),fmt='(a)', iostat=ctmpCode) &
+                                                              StringName
+             if ((ctmpCode /= 0)) then
+                call Check_Input(log_unit, 'input_data_file ')
+             end if
+          end if
+          ! read next line
+          read (unit=in_unit, fmt=lfm, iostat=ReadCode) ctmp
+       end do line_read_loop
+       ! close input file
+       close (unit = in_unit)
+    end if
+    
+    StringEnding = ".txt"
+    DataFile = trim(adjustl(StringName))//trim(adjustl(StringEnding))
+   !--------------------------------------------------------------------
+  end subroutine define_data
+
 end module define_model
 

@@ -77,6 +77,9 @@ module elfe3d
   !             ...
   real(kind=dp), allocatable, dimension(:) :: forward_data
 
+  ! observed data and errors
+  real(kind=dp), allocatable, dimension(:) :: observed_data, errors
+
   ! model output; currently vector with transfoirmed, free model parameters
   real(kind=dp), allocatable, dimension(:) :: inv_model
 
@@ -281,6 +284,8 @@ contains
     integer :: fields_vtk
 
     !!!! --------new in elfe3DInv-------!!!!
+    ! input data file
+    character(len = 255) :: DataFile
     ! for Jacobian/sensitivity calculation
     integer :: output_sens
     integer :: num_free_regions
@@ -301,6 +306,10 @@ contains
     ! counters for dAdrho assembly
     integer :: NNZ_dAdrho
     integer :: i_free_M
+
+    ! observed data as arrays
+    complex(kind=dp), allocatable, dimension(:,:, :) :: Efields_obs, &
+                                                        Efields_err
 
     ! arrays to save forward solution and system matrix for all frequencies
     complex(kind=dp), allocatable, dimension(:,:) :: system_matrix, &
@@ -389,6 +398,11 @@ contains
             'Your inversion model got updated by pygimli.')
       ! test output
       print *, 'inv_model ', inv_model
+    end if
+    ! Do not deallocate observed data and errors because it stays the same
+    if (allocated(observed_data)) then
+      call Write_Message (log_unit, &
+            'Your observed_data and errors stay the same')
     end if
     !---------------------------------------------------------------------
     call cpu_time(start)  ! CPU time measurement start
@@ -1352,8 +1366,7 @@ contains
                       primal_solution(Nfreq, E), &
                       stat = allo_stat)
             call allocheck(log_unit, allo_stat, &
-                      "error allocating solution and system matrix &
-                       arrays for optional sensitivity computation")
+                      "error allocating solution, system matrix, ...")
             ! initilise
             system_matrix = cmplx(0.0_dp, 0.0_dp, kind=dp)
             jsystem_matrix = 0
@@ -1418,6 +1431,33 @@ contains
     ! new in elfe3D_Inv
     if (output_sens == 1 .and. maxRefSteps .eq. 0) then
 
+      !!! observed data and data errors (input) to be usd for inversion
+      ! and sensitivity computation
+
+      ! get input data file name
+      call define_data (DataFile)
+      ! allocate
+      !PR: add H-fields later
+      allocate (Efields_obs(Nfreq, num_rec, 3), &
+                Efields_err(Nfreq, num_rec, 3), stat = allo_stat)
+      call allocheck(log_unit, allo_stat, &
+                    "Error allocating arrays Efields_obs and errors") 
+      if (.not. allocated(observed_data)) then
+        ! PR: change 2 size to dynamic amount of data you want for inversion
+        allocate (observed_data(Nfreq * num_rec * 2), &
+                  errors(Nfreq * num_rec * 2), stat = allo_stat)
+        call allocheck(log_unit, allo_stat, &
+                      "Error allocating vectors observed_data and errors") 
+      end if
+      ! initialise
+      Efields_obs = cmplx(0.0_dp, 0.0_dp, kind=dp)
+      Efields_err = cmplx(0.0_dp, 0.0_dp, kind=dp)
+      observed_data = 0.0_dp
+      errors = 0.0_dp
+      ! fill arrays with input data
+      call read_observed_data(DataFile, Nfreq, num_rec, &
+                              Efields_obs, Efields_err, observed_data, errors)
+
       !!! model to be transferred to inversion !!!
       ! allocate inversion model array only if its not yet allocated
       ! which is only the case for the iteration 0
@@ -1465,6 +1505,7 @@ contains
                               el2edl, ed_sign, Ve, mu, &
                               system_matrix, jsystem_matrix, &
                               isystem_matrix, &
+                              Efields, Efields_obs, Efields_err, &
                               pseudo_v, pseudo_u)
 
 
@@ -1473,7 +1514,7 @@ contains
       allocate (Jvec(size(forward_data)),JTvec(num_free_M),&
                 Jrows(size(forward_data)),Jcols(num_free_M), stat = allo_stat)
       call allocheck(log_unit, allo_stat, &
-                      "Error allocating array forward_data") 
+                      "Error allocating Jacobian arrays") 
       ! initialise
       Jvec = 0.0_dp
       JTvec = 0.0_dp
@@ -1534,6 +1575,7 @@ contains
                                               jsystem_matrix, &
                                               isystem_matrix, &
                                               primal_solution)
+    if (allocated(Efields_obs)) deallocate (Efields_obs, Efields_err)
     
     call Write_Message (log_unit, 'Allocated variables were deallocated')
 

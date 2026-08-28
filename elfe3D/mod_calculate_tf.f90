@@ -484,12 +484,12 @@ contains
      
 
      ! LOCAL variables
-     integer :: irow, ifreq,irec,icomponent
+     integer :: irow, ifreq,irec!,icomponent
      !-------------------------------------------------------------------
      ! initialise
      ifreq = 0
      irec = 0
-     icomponent = 0
+     !icomponent = 0
      irow = 1
      forward_data = 0.0_dp
 
