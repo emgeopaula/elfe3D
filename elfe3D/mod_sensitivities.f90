@@ -164,6 +164,7 @@ contains
                                 system_matrix, jsystem_matrix, &
                                 isystem_matrix, &
                                 Efields, Efields_obs, Efields_err, &
+                                test_data_vec, &
                                 pseudo_v, pseudo_u)
 
     ! INPUT
@@ -190,6 +191,11 @@ contains
     ! arrays for synthetic data
     complex(kind=dp), dimension(:, :, :), intent(in) :: Efields
 
+    ! weighted data difference: test vector x from pygimly transmult;
+    ! input to compute_pseudo_fwd subroutine to calculate JTvec
+    ! with test_data_vector x = (observed_data-test_data)/errors**2
+    real(kind=dp), dimension(:), intent(in) :: test_data_vec
+
 
 
     ! OUTPUT
@@ -203,7 +209,7 @@ contains
 
     ! local data
     ! counters
-    integer :: ifreq, irec, idxf, l
+    integer :: ifreq, irec, idxf, l, irow
     ! allocation
     integer :: allo_stat
     ! edges of the element containing receiver
@@ -265,6 +271,7 @@ contains
     ! data item counter
     ! PR use to have more data items per receiver than just Ex
     idxf = 0
+    irow = 1 !(counter for test_data_vec)
 
     do ifreq = 1,size(freq)
       
@@ -360,9 +367,19 @@ contains
         ! qq_array(ifreq,irec) = (1.0_dp, 0.0_dp)
         ! PR: with input data and errors use qq_array = (dobs-dsyn)/error**2:
         ! PR: now for Ex, update for more field components!
-        qq_array(ifreq,irec) = (Efields_obs(ifreq,irec, 1) &
-                               -Efields(ifreq,irec, 1)) &
-                               / (Efields_err(ifreq,irec, 1)**D2)
+        if ((abs(test_data_vec(1)) - 999.9_dp) .eq. 0.0_dp) then
+          qq_array(ifreq,irec) = (Efields_obs(ifreq,irec, 1) &
+                                 -Efields(ifreq,irec, 1)) &
+                                 / (Efields_err(ifreq,irec, 1)**D2)
+          print*, 'qq_array(ifreq,irec) = ', qq_array(ifreq,irec)
+        else
+          ! use test_data_vec as qq-array
+          qq_array(ifreq,irec) = cmplx(test_data_vec(irow), &
+                                   test_data_vec((size(test_data_vec)/2) + irow), &
+                                   kind=dp)
+          print*, 'qq_array(ifreq,irec) = test_data_vec(irow) = ', qq_array(ifreq,irec)
+          irow = irow + 1
+        end if
 
         ! sum up for all data at one frequency for JTvec calculation only
         ! PR: now only for Ex component!

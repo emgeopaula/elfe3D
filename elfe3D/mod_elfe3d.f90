@@ -80,6 +80,11 @@ module elfe3d
   ! observed data and errors
   real(kind=dp), allocatable, dimension(:) :: observed_data, errors
 
+  ! weighted data difference: test vector x from pygimly transmult;
+  ! input to compute_pseudo_fwd subroutine to calculate JTvec
+  ! with test_data_vector x = (observed_data-test_data)/errors**2
+  real(kind=dp), allocatable, dimension(:) :: test_data_vec
+
   ! model output; currently vector with transfoirmed, free model parameters
   real(kind=dp), allocatable, dimension(:) :: inv_model
 
@@ -395,7 +400,7 @@ contains
     ! Do not deallocate inv_model, because it got updated by pygimli
     if (allocated(inv_model)) then
       call Write_Message (log_unit, &
-            'Your inversion model got updated by pygimli.')
+            'Your inversion model gets changed by pygimli.')
       ! test output
       print *, 'inv_model ', inv_model
     end if
@@ -403,6 +408,13 @@ contains
     if (allocated(observed_data)) then
       call Write_Message (log_unit, &
             'Your observed_data and errors stay the same')
+    end if
+    ! do not deallocate test_data_vec because pygimli changes it
+    if (allocated(test_data_vec)) then
+      call Write_Message (log_unit, &
+     'Your test data vector for JTvec computation got updated by pygimli.')
+      ! test output
+      print *, 'test_data_vec ', test_data_vec
     end if
     !---------------------------------------------------------------------
     call cpu_time(start)  ! CPU time measurement start
@@ -1427,8 +1439,10 @@ contains
       write ((50+4),'(7(es15.8,2x))') freq(numfreq), Hfields(numfreq,l,:)
       end do
     end do
-
+    !---------------------------------------------------------------------
     ! new in elfe3D_Inv
+    ! sensitivity computations
+    !---------------------------------------------------------------------
     if (output_sens == 1 .and. maxRefSteps .eq. 0) then
 
       !!! observed data and data errors (input) to be usd for inversion
@@ -1481,6 +1495,18 @@ contains
       forward_data = 0.0_dp
       call order_forward_data (Nfreq, num_rec, Efields, Hfields, forward_data)
 
+      ! allocate test_data_vector for Jtvec calculation if its not yet allocated
+      ! which is only the case for the iteration 0, initialise to -999_dp
+      ! PR: change 2 size to dynamic amount of data you want for inversion
+      if (.not. allocated(test_data_vec)) then
+        allocate (test_data_vec(Nfreq * num_rec * 2), stat = allo_stat)
+        call allocheck(log_unit, allo_stat, "Error allocating array test_data_vec")
+        ! initialise
+        test_data_vec = 999.9_dp
+        print*, 'test_data_vec initialised to 999.9_dp', test_data_vec
+      end if
+
+
       !!!! sensitivities to be transferred to inversion !!!
 
       ! calculate pseudo forward problems
@@ -1506,6 +1532,7 @@ contains
                               system_matrix, jsystem_matrix, &
                               isystem_matrix, &
                               Efields, Efields_obs, Efields_err, &
+                              test_data_vec, &
                               pseudo_v, pseudo_u)
 
 
