@@ -1502,8 +1502,8 @@ contains
         allocate (test_data_vec(Nfreq * num_rec * 2), stat = allo_stat)
         call allocheck(log_unit, allo_stat, "Error allocating array test_data_vec")
         ! initialise
-        test_data_vec = 999.9_dp
-        print*, 'test_data_vec initialised to 999.9_dp', test_data_vec
+        test_data_vec = 77.0_dp
+        print*, 'test_data_vec initialised to 77.0_dp', test_data_vec
       end if
 
 

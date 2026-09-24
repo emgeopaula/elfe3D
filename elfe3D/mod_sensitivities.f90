@@ -367,7 +367,7 @@ contains
         ! qq_array(ifreq,irec) = (1.0_dp, 0.0_dp)
         ! PR: with input data and errors use qq_array = (dobs-dsyn)/error**2:
         ! PR: now for Ex, update for more field components!
-        if ((abs(test_data_vec(1)) - 999.9_dp) .eq. 0.0_dp) then
+        if ((abs(test_data_vec(1)) - 77.0_dp) .eq. 0.0_dp) then
           qq_array(ifreq,irec) = (Efields_obs(ifreq,irec, 1) &
                                  -Efields(ifreq,irec, 1)) &
                                  / (Efields_err(ifreq,irec, 1)**D2)
