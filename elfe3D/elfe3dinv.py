@@ -1,16 +1,47 @@
 import pygimli as pg
 import pyelfe3d
 import numpy as np
-#import scipy.sparse as sp
+
+import os
+import sys
+from contextlib import contextmanager
+
+
+@contextmanager
+def silence_fortran():
+    # Determine the target null device based on the platform
+    null_fd = os.open(os.devnull, os.O_WRONLY)
+    
+    # Save the original stdout file descriptor (FD 1)
+    stdout_fd = sys.stdout.fileno()
+    saved_stdout_fd = os.dup(stdout_fd)
+    
+    try:
+        # Flush C/Python buffers before redirecting
+        sys.stdout.flush()
+        
+        # Replace stdout FD with the null device FD
+        os.dup2(null_fd, stdout_fd)
+        yield
+    finally:
+        # Flush null stream, then restore the original stdout FD
+        sys.stdout.flush()
+        os.dup2(saved_stdout_fd, stdout_fd)
+        
+        # Clean up duped descriptors
+        os.close(saved_stdout_fd)
+        os.close(null_fd)
+
 
 class elfe3dJacobian(pg.Matrix):
-    def __init__(self, Jrows, Jcols, Jvec, JTvec, cached_model):
+    def __init__(self, Jrows, Jcols, Jvec, JTvec, cached_model, silence_fortran = True):
         super().__init__()
         self._Jrows = Jrows
         self._Jcols = Jcols
         self._Jvec = Jvec
         self._JTvec = JTvec
         self._cached_model = cached_model
+        self._silence_fortran = silence_fortran
     
     def rows(self):
         return len(self._Jrows)
@@ -28,7 +59,11 @@ class elfe3dJacobian(pg.Matrix):
         pyelfe3d.elfe3d.inv_model = x_arr
         
         # Call solver
-        pyelfe3d.elfe3d.solve()
+        if self._silence_fortran:
+            with silence_fortran():
+                pyelfe3d.elfe3d.solve()
+        else:
+            pyelfe3d.elfe3d.solve()
         
         # Reset Fortran model to value from previous iteration
         pyelfe3d.elfe3d.inv_model = self._cached_model
@@ -45,7 +80,11 @@ class elfe3dJacobian(pg.Matrix):
         pyelfe3d.elfe3d.test_data_vec = x_arr
         
         # Call solver
-        pyelfe3d.elfe3d.solve()
+        if self._silence_fortran:
+            with silence_fortran():
+                pyelfe3d.elfe3d.solve()
+        else:
+            pyelfe3d.elfe3d.solve()
         
         # Reset Fortran model to value from previous iteration
         pyelfe3d.elfe3d.inv_model = self._cached_model
@@ -60,7 +99,7 @@ class elfe3dJacobian(pg.Matrix):
 class elfe3DModelling(pg.Modelling):
     """Use elfe3D solver as a forward operator within pyGIMLI inversion framework."""
 
-    def __init__(self, verbose=True):
+    def __init__(self, verbose=True, silence_fortran = True):
        super().__init__(verbose=verbose)
 
        # Cache variables to avoid duplicate calls during inversion
@@ -72,6 +111,7 @@ class elfe3DModelling(pg.Modelling):
        self._cached_jcols = None
        self._observed_data = None
        self._errors = None
+       self._silence_fortran = silence_fortran
 
 
     def _run_elfe3d_solver(self, model) -> None:
@@ -86,10 +126,14 @@ class elfe3DModelling(pg.Modelling):
             m_arr = np.array(model)
             pyelfe3d.elfe3d.inv_model = m_arr
             print('[changed-model]')
-            pyelfe3d.elfe3d.solve()
         else:
             # First iteration: let elfe3d guess the initial model
             print('[none-model]')
+        
+        if self._silence_fortran:
+            with silence_fortran():
+                pyelfe3d.elfe3d.solve()
+        else:
             pyelfe3d.elfe3d.solve()
 
         # Update cached results
@@ -146,7 +190,8 @@ class elfe3DModelling(pg.Modelling):
             self._cached_jcols,
             self._cached_jvec,
             self._cached_jtvec,
-            self._cached_model)
+            self._cached_model,
+            self._silence_fortran)
         self.setJacobian(self._jacobian)
 
 
@@ -173,7 +218,7 @@ def main():
     ]) 
     
     # Define fast forward operator
-    fop = elfe3DModelling()
+    fop = elfe3DModelling(silence_fortran=False)
 
     # Use the fop (elfe3d) to define the start model
     #start_model = fop.createStartModel()
@@ -181,7 +226,7 @@ def main():
     inv = pg.Inversion(fop=fop)
     
     # Run inversion
-    inv_model = inv.run(dataVals=observed_data, errorVals=errors, maxIter=3)
+    inv_model = inv.run(dataVals=observed_data, errorVals=errors, maxIter=1)
 
     # When done, print model history
     print(['model-history'])
