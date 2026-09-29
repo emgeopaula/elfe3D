@@ -9,8 +9,11 @@ python module pyelfe3d
       double precision dimension(:), allocatable :: JTvec
       integer(kind=8) dimension(:), allocatable :: Jrows
       integer(kind=8) dimension(:), allocatable :: Jcols
+      double precision dimension(:), allocatable :: test_data_vec
       double precision dimension(:), allocatable :: forward_data
       double precision dimension(:), allocatable :: inv_model
+      double precision dimension(:), allocatable :: observed_data
+      double precision dimension(:), allocatable :: errors
 
       ! Expose main solver
       subroutine solve

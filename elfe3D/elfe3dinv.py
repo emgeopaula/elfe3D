@@ -4,12 +4,13 @@ import numpy as np
 #import scipy.sparse as sp
 
 class elfe3dJacobian(pg.Matrix):
-    def __init__(self, Jrows, Jcols, Jvec, JTvec):
+    def __init__(self, Jrows, Jcols, Jvec, JTvec, cached_model):
         super().__init__()
         self._Jrows = Jrows
         self._Jcols = Jcols
         self._Jvec = Jvec
         self._JTvec = JTvec
+        self._cached_model = cached_model
     
     def rows(self):
         return len(self._Jrows)
@@ -21,13 +22,39 @@ class elfe3dJacobian(pg.Matrix):
         """Multiply the Jacobian with a vector, Jm."""
         print('[JACOB-mult]')
         print('[JACOB-mult, x]', x)
-        return self._Jvec
+
+        # Set Fortran model to x 
+        x_arr = np.array(x)
+        pyelfe3d.elfe3d.inv_model = x_arr
+        
+        # Call solver
+        pyelfe3d.elfe3d.solve()
+        
+        # Reset Fortran model to value from previous iteration
+        pyelfe3d.elfe3d.inv_model = self._cached_model
+        
+        return pyelfe3d.elfe3d.Jvec
 
     def transMult(self, x):
         """Multiply  Jacobian transposed with a vector, Jᵀd = (dJᵀ)ᵀ."""
         print('[JACOB-transMult]')
         print('[JACOB-transMult, x]', x)
-        return self._JTvec
+
+        # Set Fortran test_data_vec to x
+        x_arr = np.array(x)
+        pyelfe3d.elfe3d.test_data_vec = x_arr
+        
+        # Call solver
+        pyelfe3d.elfe3d.solve()
+        
+        # Reset Fortran model to value from previous iteration
+        pyelfe3d.elfe3d.inv_model = self._cached_model
+
+        # Reset test_data_vec to default value
+        # (see compute_pseudo_fwd in mod_sensitivities.f90)
+        pyelfe3d.elfe3d.test_data_vec[:] = 77.0
+        
+        return pyelfe3d.elfe3d.JTvec
 
 
 class elfe3DModelling(pg.Modelling):
@@ -49,26 +76,17 @@ class elfe3DModelling(pg.Modelling):
 
     def _run_elfe3d_solver(self, model) -> None:
         """
-        Executes the elfe3d solver when 'model' is None or 'model' is different than self._cached_model
+        Executes the elfe3d solver and updates self._cached_* variables afterwards
         
         Parameters:
-            - model: The current model proposed by the inversion framework
-
-        After the elfe3d solver execution, self._cached_* variables are updated 
+            - model: The current model proposed by the inversion framework 
         """
 
         if model is not None:
             m_arr = np.array(model)
-
-            # Model hasn't change, continue using cached results (don't run forward solver)
-            if False: #self._cached_model is not None and np.allclose(m_arr, self._cached_model):
-                print('[same-model]')
-                return
-            else:       
-            # Model changed, run elfe3d forward solver
-                print('[changed-model]')
-                pyelfe3d.elfe3d.inv_model = m_arr
-                pyelfe3d.elfe3d.solve()
+            pyelfe3d.elfe3d.inv_model = m_arr
+            print('[changed-model]')
+            pyelfe3d.elfe3d.solve()
         else:
             # First iteration: let elfe3d guess the initial model
             print('[none-model]')
@@ -115,6 +133,7 @@ class elfe3DModelling(pg.Modelling):
         Returns:
             - response: forward_data
         """
+        print('[response]')
         self._run_elfe3d_solver(model)
         return self._cached_response 
 
@@ -126,9 +145,9 @@ class elfe3DModelling(pg.Modelling):
             self._cached_jrows,
             self._cached_jcols,
             self._cached_jvec,
-            self._cached_jtvec)
+            self._cached_jtvec,
+            self._cached_model)
         self.setJacobian(self._jacobian)
-        print('[JACOB jvec]', self._jacobian._Jvec)
 
 
 def main():
@@ -165,6 +184,7 @@ def main():
     inv_model = inv.run(dataVals=observed_data, errorVals=errors, maxIter=3)
 
     # When done, print model history
+    print(['model-history'])
     for i, model in enumerate(inv.modelHistory):
         print(f"Iteration {i}: Model = {model}")
 
