@@ -1,0 +1,7 @@
+numpy==2.2.6
+pgcore==1.6.0
+pygimli==1.6.0
+scipy==1.15.3
+scooby==0.11.2
+setuptools==82.0.1
+pip>=22.3.1
