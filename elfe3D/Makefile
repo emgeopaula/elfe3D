@@ -121,13 +121,14 @@ libelfe3d.a: $(CORE_OBJS)
 
 # Target python: build the Python extension linking against the static library (libelfe3d.a)
 python: libelfe3d.a
-		FC=$(FCC) FFLAGS="$(FFLAGS)" \
-				LDFLAGS="-Wl,-rpath=$(MUMPS_ROOT)/lib -Wl,-rpath=$(METIS_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib64 -fopenmp" \
-				NPY_DISTUTILS_APPEND_FLAGS=1 \
-				python -m numpy.f2py -c -m pyelfe3d python_interface.pyf \
-				-L. -lelfe3d \
-				-I$(MUMPS_ROOT)/include \
-				$(OBJUTIL)
+	FC=$(FCC) FFLAGS="$(FFLAGS)" \
+		LDFLAGS="-Wl,-rpath=$(MUMPS_ROOT)/lib -Wl,-rpath=$(METIS_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib64 -fopenmp" \
+		python -m numpy.f2py -c -m pyelfe3d python_interface.pyf \
+		--backend meson \
+		-L$(CURDIR) -lelfe3d \
+		-I$(CURDIR) \
+		-I$(MUMPS_ROOT)/include \
+		$(OBJUTIL)
 
 # clean up
 .PHONY: clean
