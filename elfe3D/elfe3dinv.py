@@ -4,33 +4,53 @@ import numpy as np
 
 import os
 import sys
+import ctypes
 from contextlib import contextmanager
 
+def _flush_c_streams():
+    """Flush all C / Fortran stdio buffers to prevent leaked output."""
+    try:
+        # Load C standard library across Unix/Linux systems
+        libc = ctypes.CDLL(None)
+        libc.fflush(None)  # NULL flushes all open C/Fortran output streams
+    except Exception:
+        pass
 
 @contextmanager
 def silence_fortran():
-    # Determine the target null device based on the platform
-    null_fd = os.open(os.devnull, os.O_WRONLY)
-    
-    # Save the original stdout file descriptor (FD 1)
+    # Flush Python and C/Fortran buffers before changing descriptors
+    sys.stdout.flush()
+    sys.stderr.flush()
+    _flush_c_streams()
+
+    # Get OS file descriptors for stdout (1) and stderr (2)
     stdout_fd = sys.stdout.fileno()
+    stderr_fd = sys.stderr.fileno()
+
+    # Save copies of original descriptors
     saved_stdout_fd = os.dup(stdout_fd)
-    
+    saved_stderr_fd = os.dup(stderr_fd)
+
+    # Open null device
+    null_fd = os.open(os.devnull, os.O_WRONLY)
+
     try:
-        # Flush C/Python buffers before redirecting
-        sys.stdout.flush()
-        
-        # Replace stdout FD with the null device FD
+        # Redirect both stdout and stderr at the OS level
         os.dup2(null_fd, stdout_fd)
+        os.dup2(null_fd, stderr_fd)
         yield
     finally:
-        # Flush null stream, then restore the original stdout FD
-        sys.stdout.flush()
+        # Flush null streams before swapping back
+        _flush_c_streams()
+
+        # Restore original descriptors
         os.dup2(saved_stdout_fd, stdout_fd)
-        
-        # Clean up duped descriptors
-        os.close(saved_stdout_fd)
+        os.dup2(saved_stderr_fd, stderr_fd)
+
+        # Close temporary descriptors
         os.close(null_fd)
+        os.close(saved_stdout_fd)
+        os.close(saved_stderr_fd)
 
 
 class elfe3dJacobian(pg.Matrix):
@@ -42,17 +62,18 @@ class elfe3dJacobian(pg.Matrix):
         self._JTvec = JTvec
         self._cached_model = cached_model
         self._silence_fortran = silence_fortran
-    
+
+
     def rows(self):
         return len(self._Jrows)
+
 
     def cols(self):
         return len(self._Jcols)
 
+
     def mult(self, x):
         """Multiply the Jacobian with a vector, Jm."""
-        print('[JACOB-mult]')
-        print('[JACOB-mult, x]', x)
 
         # Set Fortran model to x 
         x_arr = np.array(x)
@@ -70,10 +91,9 @@ class elfe3dJacobian(pg.Matrix):
         
         return pyelfe3d.elfe3d.Jvec
 
+
     def transMult(self, x):
         """Multiply  Jacobian transposed with a vector, Jᵀd = (dJᵀ)ᵀ."""
-        print('[JACOB-transMult]')
-        print('[JACOB-transMult, x]', x)
 
         # Set Fortran test_data_vec to x
         x_arr = np.array(x)
@@ -94,6 +114,7 @@ class elfe3dJacobian(pg.Matrix):
         pyelfe3d.elfe3d.test_data_vec[:] = 77.0
         
         return pyelfe3d.elfe3d.JTvec
+
 
 
 class elfe3DModelling(pg.Modelling):
@@ -125,10 +146,6 @@ class elfe3DModelling(pg.Modelling):
         if model is not None:
             m_arr = np.array(model)
             pyelfe3d.elfe3d.inv_model = m_arr
-            print('[changed-model]')
-        else:
-            # First iteration: let elfe3d guess the initial model
-            print('[none-model]')
         
         if self._silence_fortran:
             with silence_fortran():
@@ -160,10 +177,8 @@ class elfe3DModelling(pg.Modelling):
         but elfe3D doesn't need it as it reads the initial model from a file, so dataVals is ignored.
 
         """
-        print('[start-model]')
+
         self._run_elfe3d_solver(model=None)
-        print('[observed_data]', self._observed_data)
-        print('[errors]', self._errors)
         return self._cached_model
 
 
@@ -177,14 +192,14 @@ class elfe3DModelling(pg.Modelling):
         Returns:
             - response: forward_data
         """
-        print('[response]')
+
         self._run_elfe3d_solver(model)
         return self._cached_response 
 
 
     def createJacobian(self, model):
         """Instantiates and sets matrix-free Jacobian operator for pyGIMLi."""
-        print('[JACOB]')
+
         self._jacobian = elfe3dJacobian(
             self._cached_jrows,
             self._cached_jcols,
@@ -195,17 +210,8 @@ class elfe3DModelling(pg.Modelling):
         self.setJacobian(self._jacobian)
 
 
-def main():
 
-    # Define errors:
-    errors = pg.Vector([
-        3.01376403E-07,
-        2.22861987E-07,
-        1.62550486E-07,
-        5.16305677E-11,
-        3.94458122E-11,
-        3.06961268E-11
-    ])
+def main():
 
     # Define observed data:
     observed_data = pg.Vector([
@@ -216,17 +222,26 @@ def main():
         3.94458122E-10,
         3.06961268E-10
     ]) 
+
+    # Define errors:
+    errors = pg.Vector([
+        3.01376403E-07,
+        2.22861987E-07,
+        1.62550486E-07,
+        5.16305677E-11,
+        3.94458122E-11,
+        3.06961268E-11
+    ])
+    relative_errors = errors / observed_data
     
     # Define fast forward operator
-    fop = elfe3DModelling(silence_fortran=False)
+    fop = elfe3DModelling(silence_fortran=True)
 
-    # Use the fop (elfe3d) to define the start model
-    #start_model = fop.createStartModel()
+    # Initialize inversion with fop
+    inv = pg.Inversion(fop=fop, verbose=True)
 
-    inv = pg.Inversion(fop=fop)
-    
     # Run inversion
-    inv_model = inv.run(dataVals=observed_data, errorVals=errors, maxIter=1)
+    inv_model = inv.run(dataVals=observed_data, errorVals=relative_errors)
 
     # When done, print model history
     print(['model-history'])

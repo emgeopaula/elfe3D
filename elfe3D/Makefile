@@ -32,6 +32,9 @@ CORE_OBJS =   mod_constant.o \
 	mod_sensitivities.o \
 	mod_elfe3d.o
 
+# Convert .o filenames in CORE_OBJS to .f90 filenames automatically
+CORE_SRCS = $(CORE_OBJS:.o=.f90)
+
 # Main app executable object
 MAIN_OBJ = main.o
 
@@ -112,22 +115,16 @@ all: elfe3d python
 elfe3d: $(CORE_OBJS) $(MAIN_OBJ)
 		$(FCC) $(FFLAGS) $(MAIN_OBJ) $(CORE_OBJS) $(OBJUTIL) -Wl,-rpath=$(MUMPS_ROOT)/lib -Wl,-rpath=$(METIS_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib64 -o elfe3d
 
-# Target libelfe3d.a: build a static library needed by the python wrapper
-# $@ expands to target name (libelfe3d.a)
-# $^ exapands to all pre-requisites (CORE_OBJS)
-libelfe3d.a: $(CORE_OBJS)
-		ar rcs $@ $^
-		@echo "Library libelfe3d.a and module files (.mod) are ready"
 
-# Target python: build the Python extension linking against the static library (libelfe3d.a)
-python: libelfe3d.a
-		FC=$(FCC) FFLAGS="$(FFLAGS)" \
-				LDFLAGS="-Wl,-rpath=$(MUMPS_ROOT)/lib -Wl,-rpath=$(METIS_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib64 -fopenmp" \
-				NPY_DISTUTILS_APPEND_FLAGS=1 \
-				python -m numpy.f2py -c -m pyelfe3d python_interface.pyf \
-				-L. -lelfe3d \
-				-I$(MUMPS_ROOT)/include \
-				$(OBJUTIL)
+# Target python: build the extension for Python
+python:
+	FC=$(FCC) FFLAGS="$(FFLAGS)" \
+		LDFLAGS="-Wl,-rpath=$(MUMPS_ROOT)/lib -Wl,-rpath=$(METIS_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib64 -fopenmp" \
+		python -m numpy.f2py -c -m pyelfe3d python_interface.pyf \
+		$(CORE_SRCS) \
+		--backend meson \
+		-I$(MUMPS_ROOT)/include \
+		$(OBJUTIL)
 
 # clean up
 .PHONY: clean
