@@ -32,6 +32,9 @@ CORE_OBJS =   mod_constant.o \
 	mod_sensitivities.o \
 	mod_elfe3d.o
 
+# Convert .o filenames in CORE_OBJS to .f90 filenames automatically
+CORE_SRCS = $(CORE_OBJS:.o=.f90)
+
 # Main app executable object
 MAIN_OBJ = main.o
 
@@ -120,13 +123,12 @@ libelfe3d.a: $(CORE_OBJS)
 		@echo "Library libelfe3d.a and module files (.mod) are ready"
 
 # Target python: build the Python extension linking against the static library (libelfe3d.a)
-python: libelfe3d.a
+python:
 	FC=$(FCC) FFLAGS="$(FFLAGS)" \
 		LDFLAGS="-Wl,-rpath=$(MUMPS_ROOT)/lib -Wl,-rpath=$(METIS_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib -Wl,-rpath=$(SCOTCH_ROOT)/lib64 -fopenmp" \
 		python -m numpy.f2py -c -m pyelfe3d python_interface.pyf \
+		$(CORE_SRCS) \
 		--backend meson \
-		-L$(CURDIR) -lelfe3d \
-		-I$(CURDIR) \
 		-I$(MUMPS_ROOT)/include \
 		$(OBJUTIL)
 

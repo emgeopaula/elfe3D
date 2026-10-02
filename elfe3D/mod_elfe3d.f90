@@ -53,6 +53,7 @@ module elfe3d
   use mod_constant
 
   implicit none
+  save
 
   ! sensitivity output: Jacobian times vectors in COO format
   real(kind=dp), allocatable, dimension(:) :: Jvec, JTvec
@@ -1652,3 +1653,27 @@ contains
   end subroutine solve
 
 end module elfe3d
+
+subroutine get_jrows_size(n_jrows)
+  use elfe3d, only: Jrows
+  implicit none
+  integer, intent(out) :: n_jrows
+
+  if (allocated(Jrows)) then
+    n_jrows = size(Jrows)
+  else
+    n_jrows = 0
+  end if
+end subroutine get_jrows_size
+
+subroutine get_jcols_size(n_jcols)
+  use elfe3d, only: Jcols
+  implicit none
+  integer, intent(out) :: n_jcols
+
+  if (allocated(Jcols)) then
+    n_jcols = size(Jcols)
+  else
+    n_jcols = 0
+  end if
+end subroutine get_jcols_size

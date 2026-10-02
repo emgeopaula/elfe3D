@@ -21,5 +21,14 @@ python module pyelfe3d
 
     end module elfe3d
 
+    ! Expose utility functions
+    subroutine get_jrows_size(n_jrows)
+      integer(kind=8) intent(out) :: n_jrows
+    end subroutine get_jrows_size
+
+    subroutine get_jcols_size(n_jcols)
+      integer(kind=8) intent(out) :: n_jcols
+    end subroutine get_jcols_size
+
   end interface
 end python module pyelfe3d
