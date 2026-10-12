@@ -1,4 +1,5 @@
 import pygimli as pg
+import pygimli.meshtools as mt
 import pyelfe3d
 import numpy as np
 
@@ -232,8 +233,32 @@ def main():
     print(['model-history'])
     for i, model in enumerate(inv.modelHistory):
         print(f"Iteration {i}: Model = {model}")
+        
+    # Write models into .vtk files
+    # reads tetgen-generated mesh with region markers
+    mesh = mt.readTetgen("./in/mesh") 
 
+    # region 3 is the inversion region that is updated during iterations
+    # we have to verify if pygimli counts the same way as elfe3D
+    region3 = [c.id() for c in mesh.cells() if c.marker() == 3]
 
+    # for each model in the inversion history
+    for i, model in enumerate(inv.modelHistory):
+    
+        # check that number of cells in region 3 is equal the number of model entries
+        print(len(region3))
+        print(len(model))
+        assert len(model) == len(region3)
+    
+        # fill entire model cells with nan
+        vtkdata = np.full(mesh.cellCount(), np.nan)
+        vtkdata[region3] = model
+
+        # use current iteration model
+        mesh["FEM"] = vtkdata
+
+        # write it to .vtk file (one file per iteration)
+        mesh.exportVTK(f"iter_{i:03d}.vtk")
 
 if __name__ == "__main__":
     main()
